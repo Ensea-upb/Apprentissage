@@ -26,7 +26,7 @@ router.get('/blocks', (_req: Request, res: Response) => {
 
 // GET /api/concepts/block/:blockId
 router.get('/block/:blockId', (req: Request, res: Response) => {
-  const blockId = parseInt(req.params.blockId);
+  const blockId = parseInt(req.params.blockId as string);
   if (isNaN(blockId) || blockId < 0 || blockId > 9) {
     res.status(400).json({ error: 'Invalid blockId (0-9)' });
     return;

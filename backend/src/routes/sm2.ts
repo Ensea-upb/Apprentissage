@@ -59,7 +59,7 @@ router.get('/due-today', async (req: AuthRequest, res: Response) => {
 
 // GET /api/sm2/:conceptId — single card (must be after all named routes)
 router.get('/:conceptId', async (req: AuthRequest, res: Response) => {
-  const { conceptId } = req.params;
+  const conceptId = req.params.conceptId as string;
   const userId = req.userId!;
   try {
     const card = await prisma.sM2Card.findUnique({ where: { userId_conceptId: { userId, conceptId } } });
@@ -76,7 +76,7 @@ router.get('/:conceptId', async (req: AuthRequest, res: Response) => {
 
 // POST /api/sm2/:conceptId/review
 router.post('/:conceptId/review', async (req: AuthRequest, res: Response) => {
-  const { conceptId } = req.params;
+  const conceptId = req.params.conceptId as string;
   const { quality } = req.body as { quality: number };
   const userId = req.userId!;
 
@@ -131,7 +131,7 @@ router.post('/:conceptId/review', async (req: AuthRequest, res: Response) => {
 
 // POST /api/sm2/:conceptId/init - create or reset SM2 card for a concept
 router.post('/:conceptId/init', async (req: AuthRequest, res: Response) => {
-  const { conceptId } = req.params;
+  const conceptId = req.params.conceptId as string;
   const userId = req.userId!;
 
   try {

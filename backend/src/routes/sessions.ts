@@ -25,7 +25,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
 // GET /api/sessions/:id — single session
 router.get('/:id', async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const userId = req.userId!;
   try {
     const session = await prisma.learningSession.findFirst({ where: { id, userId } });
@@ -63,7 +63,7 @@ router.post('/start', async (req: AuthRequest, res: Response) => {
 
 // POST /api/sessions/:id/answer
 router.post('/:id/answer', async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { isCorrect, errorType } = req.body as { isCorrect: boolean; errorType?: string };
   const userId = req.userId!;
 
@@ -115,7 +115,7 @@ router.post('/:id/answer', async (req: AuthRequest, res: Response) => {
 
 // POST /api/sessions/:id/complete
 router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const userId = req.userId!;
 
   try {

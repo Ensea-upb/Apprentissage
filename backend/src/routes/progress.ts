@@ -98,7 +98,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 // MUST be after all specific GET routes (stats, available)
 router.get('/:conceptId', async (req: AuthRequest, res: Response) => {
   const userId = req.userId!;
-  const { conceptId } = req.params;
+  const conceptId = req.params.conceptId as string;
   try {
     const progress = await prisma.conceptProgress.findUnique({
       where: { userId_conceptId: { userId, conceptId } },
@@ -116,7 +116,8 @@ router.get('/:conceptId', async (req: AuthRequest, res: Response) => {
 
 // POST /api/progress/:conceptId/phase/:phase/complete
 router.post('/:conceptId/phase/:phase/complete', async (req: AuthRequest, res: Response) => {
-  const { conceptId, phase } = req.params;
+  const conceptId = req.params.conceptId as string;
+  const phase = req.params.phase as string;
   const phaseNum = parseInt(phase);
   const userId = req.userId!;
 
