@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dataquest-db
+    environment:
+      POSTGRES_USER: dataquest
+      POSTGRES_PASSWORD: dataquest_secret
+      POSTGRES_DB: dataquest
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dataquest"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: dataquest-backend
+    environment:
+      DATABASE_URL: postgresql://dataquest:dataquest_secret@postgres:5432/dataquest
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-change-in-production}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      PORT: 3001
+      NODE_ENV: production
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: dataquest-frontend
+    environment:
+      VITE_API_URL: http://localhost:3001
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
