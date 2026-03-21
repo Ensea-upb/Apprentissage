@@ -122,7 +122,11 @@ router.post('/:conceptId/review', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.json(saved);
+    res.json({
+      card: saved,
+      newInterval: saved.interval,
+      newEasinessFactor: saved.easinessFactor,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

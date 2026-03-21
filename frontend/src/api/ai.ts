@@ -43,8 +43,4 @@ export const aiApi = {
     return response.data;
   },
 
-  getHint: async (questionId: string): Promise<string> => {
-    const response = await apiClient.get<{ hint: string }>(`/ai/hint/${questionId}`);
-    return response.data.hint;
-  },
 };

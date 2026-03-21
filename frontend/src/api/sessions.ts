@@ -6,10 +6,15 @@ export interface StartSessionResponse {
 }
 
 export interface SubmitAnswerResponse {
-  correct: boolean;
-  xpEarned: number;
-  sessionXP: number;
-  explanation: string;
+  session: {
+    id: string;
+    questionsAsked: number;
+    correctAnswers: number;
+    livesRemaining: number;
+    xpEarned: number;
+  };
+  xpGained: number;
+  livesRemaining: number;
 }
 
 export const sessionsApi = {

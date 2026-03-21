@@ -131,19 +131,19 @@ router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
     });
 
     const accuracy = completed.questionsAsked > 0
-      ? completed.correctAnswers / completed.questionsAsked
+      ? (completed.correctAnswers / completed.questionsAsked) * 100
       : 0;
 
     res.json({
-      session: completed,
+      sessionId: completed.id,
+      conceptId: completed.conceptId,
+      phase: completed.phase,
+      questionsAsked: completed.questionsAsked,
+      correctAnswers: completed.correctAnswers,
       accuracy,
-      summary: {
-        questionsAsked: completed.questionsAsked,
-        correctAnswers: completed.correctAnswers,
-        accuracy,
-        xpEarned: completed.xpEarned,
-        errorBreakdown: completed.errorTypes,
-      },
+      xpEarned: completed.xpEarned,
+      errorBreakdown: completed.errorTypes,
+      phaseCompleted: false,
     });
   } catch (err) {
     console.error(err);

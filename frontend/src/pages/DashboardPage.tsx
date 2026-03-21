@@ -28,7 +28,7 @@ function StatCard({
   color,
   subtitle,
 }: {
-  icon: React.ComponentType<{ size: number; className?: string }>;
+  icon: React.ComponentType<{ size: number; className?: string; style?: React.CSSProperties }>;
   label: string;
   value: string | number;
   color: string;
@@ -44,7 +44,7 @@ function StatCard({
         className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
         style={{ backgroundColor: `${color}20`, border: `1px solid ${color}30` }}
       >
-        <Icon size={20} className="" style={{ color }} />
+        <Icon size={20} style={{ color }} />
       </div>
       <div>
         <p className="text-slate-500 text-xs">{label}</p>

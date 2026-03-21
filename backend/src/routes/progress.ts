@@ -28,7 +28,10 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
   try {
     const [progress, sessions] = await Promise.all([
       prisma.conceptProgress.findMany({ where: { userId } }),
-      prisma.learningSession.findMany({ where: { userId, completedAt: { not: null } } }),
+      prisma.learningSession.findMany({
+        where: { userId, completedAt: { not: null } },
+        orderBy: { completedAt: 'desc' },
+      }),
     ]);
 
     const validated = progress.filter((p) => p.isValidated).length;
@@ -46,13 +49,29 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Recent activity (last 10 completed sessions)
+    const recentActivity = sessions.slice(0, 10).map((sess) => {
+      const concept = CONCEPTS.find((c) => c.id === sess.conceptId);
+      return {
+        date: (sess.completedAt ?? sess.startedAt).toISOString(),
+        conceptId: sess.conceptId,
+        conceptLabel: concept?.label ?? sess.conceptId,
+        phase: sess.phase,
+        xpEarned: sess.xpEarned,
+        accuracy: sess.questionsAsked > 0
+          ? (sess.correctAnswers / sess.questionsAsked) * 100
+          : 0,
+      };
+    });
+
     res.json({
-      conceptsValidated: validated,
+      conceptsMastered: validated,
       totalConcepts: progress.length,
-      totalXp,
-      accuracy: totalAsked > 0 ? totalCorrect / totalAsked : 0,
+      totalXP: totalXp,
+      averageAccuracy: totalAsked > 0 ? (totalCorrect / totalAsked) * 100 : 0,
       totalSessions,
       errorBreakdown,
+      recentActivity,
     });
   } catch (err) {
     console.error(err);
