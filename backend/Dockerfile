@@ -7,7 +7,7 @@ RUN npm install
 
 COPY . .
 RUN npx prisma generate
-RUN npm run build
+RUN npx tsc --skipLibCheck
 
 EXPOSE 3001
 
