@@ -22,20 +22,46 @@ const COIN_REWARDS = {
   blockValidated: 500,
 };
 
-// GET /api/progress
-router.get('/', async (req: AuthRequest, res: Response) => {
+// GET /api/progress/stats — summary for dashboard/profile
+router.get('/stats', async (req: AuthRequest, res: Response) => {
+  const userId = req.userId!;
   try {
-    const progress = await prisma.conceptProgress.findMany({
-      where: { userId: req.userId },
+    const [progress, sessions] = await Promise.all([
+      prisma.conceptProgress.findMany({ where: { userId } }),
+      prisma.learningSession.findMany({ where: { userId, completedAt: { not: null } } }),
+    ]);
+
+    const validated = progress.filter((p) => p.isValidated).length;
+    const totalXp = progress.reduce((sum, p) => sum + p.xpEarned, 0);
+    const totalSessions = sessions.length;
+    const totalCorrect = sessions.reduce((s, sess) => s + sess.correctAnswers, 0);
+    const totalAsked = sessions.reduce((s, sess) => s + sess.questionsAsked, 0);
+
+    // Aggregate error types across all sessions
+    const errorBreakdown: Record<string, number> = {};
+    for (const sess of sessions) {
+      const errors = sess.errorTypes as Record<string, number>;
+      for (const [k, v] of Object.entries(errors)) {
+        errorBreakdown[k] = (errorBreakdown[k] || 0) + v;
+      }
+    }
+
+    res.json({
+      conceptsValidated: validated,
+      totalConcepts: progress.length,
+      totalXp,
+      accuracy: totalAsked > 0 ? totalCorrect / totalAsked : 0,
+      totalSessions,
+      errorBreakdown,
     });
-    res.json(progress);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// GET /api/progress/available - concepts whose prerequisites are all validated
+// GET /api/progress/available — concepts whose prerequisites are all validated
+// MUST be before /:conceptId to avoid route shadowing
 router.get('/available', async (req: AuthRequest, res: Response) => {
   try {
     const progress = await prisma.conceptProgress.findMany({
@@ -49,6 +75,39 @@ router.get('/available', async (req: AuthRequest, res: Response) => {
     });
 
     res.json(available);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/progress — all user progress entries
+router.get('/', async (req: AuthRequest, res: Response) => {
+  try {
+    const progress = await prisma.conceptProgress.findMany({
+      where: { userId: req.userId },
+    });
+    res.json(progress);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/progress/:conceptId — single concept progress
+// MUST be after all specific GET routes (stats, available)
+router.get('/:conceptId', async (req: AuthRequest, res: Response) => {
+  const userId = req.userId!;
+  const { conceptId } = req.params;
+  try {
+    const progress = await prisma.conceptProgress.findUnique({
+      where: { userId_conceptId: { userId, conceptId } },
+    });
+    if (!progress) {
+      res.status(404).json({ error: 'No progress found for this concept' });
+      return;
+    }
+    res.json(progress);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -72,60 +131,68 @@ router.post('/:conceptId/phase/:phase/complete', async (req: AuthRequest, res: R
     return;
   }
 
-  try {
-    const phaseField = `phase${phaseNum}Done` as keyof {
-      phase1Done: boolean; phase2Done: boolean; phase3Done: boolean;
-      phase4Done: boolean; phase5Done: boolean; phase6Done: boolean;
-    };
+  type PhaseField = 'phase1Done' | 'phase2Done' | 'phase3Done' | 'phase4Done' | 'phase5Done' | 'phase6Done';
+  const phaseField = `phase${phaseNum}Done` as PhaseField;
 
-    const existing = await prisma.conceptProgress.findUnique({
-      where: { userId_conceptId: { userId, conceptId } },
+  try {
+    // Use a transaction to prevent double-XP race conditions
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.conceptProgress.findUnique({
+        where: { userId_conceptId: { userId, conceptId } },
+      });
+
+      // Idempotency: phase already completed → return current state without granting XP again
+      if (existing && existing[phaseField] === true) {
+        return { alreadyDone: true, existing };
+      }
+
+      // Compute phase states after this update
+      const afterUpdate = {
+        phase1Done: existing?.phase1Done ?? false,
+        phase2Done: existing?.phase2Done ?? false,
+        phase3Done: existing?.phase3Done ?? false,
+        phase4Done: existing?.phase4Done ?? false,
+        phase5Done: existing?.phase5Done ?? false,
+        phase6Done: existing?.phase6Done ?? false,
+        [phaseField]: true,
+      };
+
+      const allMandatoryDone =
+        afterUpdate.phase1Done && afterUpdate.phase2Done &&
+        afterUpdate.phase3Done && afterUpdate.phase4Done && afterUpdate.phase5Done;
+
+      let xpEarned = XP_REWARDS.phaseComplete;
+      let coinsEarned = COIN_REWARDS.phaseComplete;
+      const updateData: Record<string, boolean | Date> = { [phaseField]: true };
+
+      if (allMandatoryDone && !existing?.isValidated) {
+        updateData.isValidated = true;
+        updateData.completedAt = new Date();
+        xpEarned += XP_REWARDS.conceptValidated;
+        coinsEarned += COIN_REWARDS.conceptValidated;
+      }
+
+      const progress = await tx.conceptProgress.upsert({
+        where: { userId_conceptId: { userId, conceptId } },
+        update: { ...updateData, xpEarned: { increment: xpEarned } },
+        create: { userId, conceptId, xpEarned, ...updateData },
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { xp: { increment: xpEarned }, dataCoins: { increment: coinsEarned } },
+      });
+
+      return { alreadyDone: false, progress, xpEarned, coinsEarned, conceptValidated: !!updateData.isValidated };
     });
 
-    const updateData: Record<string, boolean | string | number | Date> = { [phaseField]: true };
-
-    // Check if all mandatory phases (1-5) are done → validate concept
-    const afterUpdate = {
-      phase1Done: existing?.phase1Done || false,
-      phase2Done: existing?.phase2Done || false,
-      phase3Done: existing?.phase3Done || false,
-      phase4Done: existing?.phase4Done || false,
-      phase5Done: existing?.phase5Done || false,
-      phase6Done: existing?.phase6Done || false,
-      [phaseField]: true,
-    };
-
-    const allMandatoryDone = afterUpdate.phase1Done && afterUpdate.phase2Done &&
-      afterUpdate.phase3Done && afterUpdate.phase4Done && afterUpdate.phase5Done;
-
-    let xpEarned = XP_REWARDS.phaseComplete;
-    let coinsEarned = COIN_REWARDS.phaseComplete;
-
-    if (allMandatoryDone && !existing?.isValidated) {
-      updateData.isValidated = true;
-      updateData.completedAt = new Date();
-      xpEarned += XP_REWARDS.conceptValidated;
-      coinsEarned += COIN_REWARDS.conceptValidated;
+    if (result.alreadyDone) {
+      res.status(200).json({ success: true, message: 'Phase already completed', xpEarned: 0, coinsEarned: 0, conceptValidated: false });
+      return;
     }
 
-    await prisma.conceptProgress.upsert({
-      where: { userId_conceptId: { userId, conceptId } },
-      update: { ...updateData, xpEarned: { increment: xpEarned } },
-      create: {
-        userId,
-        conceptId,
-        xpEarned,
-        ...updateData,
-      },
-    });
-
-    // Award XP and DataCoins to user
-    await prisma.user.update({
-      where: { id: userId },
-      data: { xp: { increment: xpEarned }, dataCoins: { increment: coinsEarned } },
-    });
-
-    res.json({ success: true, xpEarned, coinsEarned, conceptValidated: !!updateData.isValidated });
+    const { xpEarned, coinsEarned, conceptValidated } = result as { xpEarned: number; coinsEarned: number; conceptValidated: boolean };
+    res.json({ success: true, xpEarned, coinsEarned, conceptValidated });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

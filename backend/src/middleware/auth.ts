@@ -14,8 +14,15 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
     return;
   }
 
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    console.error('FATAL: JWT_SECRET environment variable is not set');
+    res.status(500).json({ error: 'Server configuration error' });
+    return;
+  }
+
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || 'secret') as { userId: string };
+    const payload = jwt.verify(token, secret) as { userId: string };
     req.userId = payload.userId;
     next();
   } catch {

@@ -44,14 +44,15 @@ export function sm2Update(card: SM2Card, quality: number): SM2Card {
 }
 
 /**
- * Map accuracy percentage to SM-2 quality score
- * accuracy 0-1 → quality 0-5
+ * Map accuracy percentage to SM-2 quality score.
+ * accuracy ∈ [0, 1] → quality ∈ {0, 1, 2, 3, 4, 5}
  */
 export function accuracyToQuality(accuracy: number): number {
-  if (accuracy >= 0.9) return 5;
-  if (accuracy >= 0.75) return 4;
-  if (accuracy >= 0.6) return 3;
-  if (accuracy >= 0.4) return 2;
-  if (accuracy >= 0.2) return 1;
+  const clamped = Math.min(1, Math.max(0, accuracy));
+  if (clamped >= 0.9) return 5;
+  if (clamped >= 0.75) return 4;
+  if (clamped >= 0.6) return 3;
+  if (clamped >= 0.4) return 2;
+  if (clamped >= 0.2) return 1;
   return 0;
 }

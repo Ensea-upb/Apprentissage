@@ -3,6 +3,14 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 
+// ── Validate required environment variables before anything else ──
+const REQUIRED_ENV = ['JWT_SECRET', 'DATABASE_URL', 'ANTHROPIC_API_KEY'];
+const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missing.length > 0) {
+  console.error(`FATAL: Missing required environment variables: ${missing.join(', ')}`);
+  process.exit(1);
+}
+
 import authRoutes from './routes/auth';
 import conceptsRoutes from './routes/concepts';
 import progressRoutes from './routes/progress';

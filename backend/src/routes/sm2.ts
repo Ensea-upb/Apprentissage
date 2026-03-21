@@ -8,6 +8,31 @@ const router = Router();
 const prisma = new PrismaClient();
 router.use(authenticateToken);
 
+// GET /api/sm2 — all SM-2 cards for the user
+router.get('/', async (req: AuthRequest, res: Response) => {
+  const userId = req.userId!;
+  try {
+    const cards = await prisma.sM2Card.findMany({ where: { userId }, orderBy: { nextReviewDate: 'asc' } });
+    res.json(cards);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/sm2/due-today/count — number of cards due (lightweight)
+router.get('/due-today/count', async (req: AuthRequest, res: Response) => {
+  const userId = req.userId!;
+  const now = new Date();
+  try {
+    const count = await prisma.sM2Card.count({ where: { userId, nextReviewDate: { lte: now } } });
+    res.json({ count });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/sm2/due-today
 router.get('/due-today', async (req: AuthRequest, res: Response) => {
   const userId = req.userId!;
@@ -26,6 +51,23 @@ router.get('/due-today', async (req: AuthRequest, res: Response) => {
     }));
 
     res.json({ cards: updated, count: updated.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/sm2/:conceptId — single card (must be after all named routes)
+router.get('/:conceptId', async (req: AuthRequest, res: Response) => {
+  const { conceptId } = req.params;
+  const userId = req.userId!;
+  try {
+    const card = await prisma.sM2Card.findUnique({ where: { userId_conceptId: { userId, conceptId } } });
+    if (!card) {
+      res.status(404).json({ error: 'SM-2 card not found' });
+      return;
+    }
+    res.json({ ...card, decayLevel: computeDecay(card.lastReviewDate, card.interval) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

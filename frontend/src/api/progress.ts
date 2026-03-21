@@ -1,9 +1,9 @@
 import apiClient from './client';
-import { ConceptProgress, UserStats } from '../types';
+import { Concept, ConceptProgress, UserStats } from '../types';
 
 export const progressApi = {
-  getUserProgress: async (): Promise<Record<string, ConceptProgress>> => {
-    const response = await apiClient.get<Record<string, ConceptProgress>>('/progress');
+  getUserProgress: async (): Promise<ConceptProgress[]> => {
+    const response = await apiClient.get<ConceptProgress[]>('/progress');
     return response.data;
   },
 
@@ -12,8 +12,8 @@ export const progressApi = {
     return response.data;
   },
 
-  getAvailableConcepts: async (): Promise<string[]> => {
-    const response = await apiClient.get<string[]>('/progress/available');
+  getAvailableConcepts: async (): Promise<Concept[]> => {
+    const response = await apiClient.get<Concept[]>('/progress/available');
     return response.data;
   },
 

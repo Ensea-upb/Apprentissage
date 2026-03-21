@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { progressApi } from '../api/progress';
 import { sm2Api } from '../api/sm2';
-import { ConceptProgress, SM2Card } from '../types';
+import { Concept, ConceptProgress, SM2Card } from '../types';
 
 interface ProgressState {
+  // conceptProgress keyed by conceptId for O(1) lookup
   conceptProgress: Record<string, ConceptProgress>;
-  availableConcepts: string[];
+  availableConcepts: Concept[];
+  availableConceptIds: Set<string>;
   sm2Cards: SM2Card[];
   dueTodayCount: number;
   isLoading: boolean;
@@ -20,6 +22,7 @@ interface ProgressState {
 export const useProgressStore = create<ProgressState>((set, get) => ({
   conceptProgress: {},
   availableConcepts: [],
+  availableConceptIds: new Set(),
   sm2Cards: [],
   dueTodayCount: 0,
   isLoading: false,
@@ -28,16 +31,26 @@ export const useProgressStore = create<ProgressState>((set, get) => ({
   loadProgress: async () => {
     set({ isLoading: true, error: null });
     try {
-      const [progress, available] = await Promise.all([
-        progressApi.getUserProgress(),
-        progressApi.getAvailableConcepts(),
+      // Both calls are independent — run in parallel
+      const [progressArray, availableArray] = await Promise.all([
+        progressApi.getUserProgress(),     // ConceptProgress[]
+        progressApi.getAvailableConcepts(), // Concept[]
       ]);
-      set({ conceptProgress: progress, availableConcepts: available, isLoading: false });
-    } catch (err: unknown) {
+
+      // Convert array to Record for O(1) access
+      const conceptProgress: Record<string, ConceptProgress> = {};
+      for (const p of progressArray) {
+        conceptProgress[p.conceptId] = p;
+      }
+
       set({
+        conceptProgress,
+        availableConcepts: availableArray,
+        availableConceptIds: new Set(availableArray.map((c) => c.id)),
         isLoading: false,
-        error: 'Erreur lors du chargement de la progression.',
       });
+    } catch {
+      set({ isLoading: false, error: 'Erreur lors du chargement de la progression.' });
     }
   },
 
@@ -46,46 +59,37 @@ export const useProgressStore = create<ProgressState>((set, get) => ({
       const count = await sm2Api.getDueTodayCount();
       set({ dueTodayCount: count });
     } catch {
-      // Non-critical error
+      // Non-critical
     }
   },
 
   loadSM2Cards: async () => {
     try {
-      const cards = await sm2Api.getDueCards();
-      set({ sm2Cards: cards, dueTodayCount: cards.length });
+      const { cards, count } = await sm2Api.getDueCards();
+      set({ sm2Cards: cards, dueTodayCount: count });
     } catch {
-      // Non-critical error
+      // Non-critical
     }
   },
 
   getConceptStatus: (conceptId: string) => {
-    const { conceptProgress, availableConcepts, sm2Cards } = get();
+    const { conceptProgress, availableConceptIds, sm2Cards } = get();
     const progress = conceptProgress[conceptId];
 
     if (progress?.isValidated) {
-      // Check if decaying
       const sm2Card = sm2Cards.find((c) => c.conceptId === conceptId);
-      if (sm2Card && sm2Card.decayLevel >= 0.75) {
-        return 'decaying';
-      }
+      if (sm2Card && sm2Card.decayLevel >= 0.75) return 'decaying';
       return 'mastered';
     }
 
     if (progress && (
-      progress.phase1Done ||
-      progress.phase2Done ||
-      progress.phase3Done ||
-      progress.phase4Done ||
-      progress.phase5Done ||
-      progress.phase6Done
+      progress.phase1Done || progress.phase2Done || progress.phase3Done ||
+      progress.phase4Done || progress.phase5Done || progress.phase6Done
     )) {
       return 'in_progress';
     }
 
-    if (availableConcepts.includes(conceptId)) {
-      return 'available';
-    }
+    if (availableConceptIds.has(conceptId)) return 'available';
 
     return 'locked';
   },

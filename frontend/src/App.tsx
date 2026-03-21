@@ -8,6 +8,7 @@ import LearnPage from './pages/LearnPage';
 import RoadmapPage from './pages/RoadmapPage';
 import ProfilePage from './pages/ProfilePage';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore();
@@ -32,7 +33,7 @@ export default function App() {
     if (token) {
       checkAuth();
     }
-  }, []);
+  }, [token, checkAuth]);
 
   if (isLoading) {
     return (
@@ -43,6 +44,7 @@ export default function App() {
   }
 
   return (
+    <ErrorBoundary>
     <Routes>
       <Route
         path="/"
@@ -98,5 +100,6 @@ export default function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </ErrorBoundary>
   );
 }

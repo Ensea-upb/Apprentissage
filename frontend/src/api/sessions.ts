@@ -30,7 +30,7 @@ export const sessionsApi = {
   },
 
   end: async (sessionId: string): Promise<SessionResult> => {
-    const response = await apiClient.post<SessionResult>(`/sessions/${sessionId}/end`);
+    const response = await apiClient.post<SessionResult>(`/sessions/${sessionId}/complete`);
     return response.data;
   },
 

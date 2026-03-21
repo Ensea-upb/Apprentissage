@@ -8,7 +8,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 const router = Router();
 const prisma = new PrismaClient();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+const JWT_SECRET = process.env.JWT_SECRET!; // validated at startup in index.ts
 const JWT_EXPIRES = '7d';
 
 // POST /api/auth/register
@@ -89,22 +89,24 @@ router.post(
         return;
       }
 
-      // Update last active and streak
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const lastActive = user.lastActiveAt;
+      // Update last active and streak — compare UTC dates to avoid timezone issues
+      const todayUTC = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+      const yesterdayDate = new Date();
+      yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
+      const yesterdayUTC = yesterdayDate.toISOString().slice(0, 10);
+      const lastActiveUTC = user.lastActiveAt.toISOString().slice(0, 10);
 
       let newStreak = user.streak;
-      if (lastActive.toDateString() === yesterday.toDateString()) {
+      if (lastActiveUTC === yesterdayUTC) {
         newStreak += 1;
-      } else if (lastActive.toDateString() !== today.toDateString()) {
-        newStreak = 1;
+      } else if (lastActiveUTC !== todayUTC) {
+        newStreak = 1; // Streak broken
       }
+      // If lastActiveUTC === todayUTC → already logged in today, keep streak unchanged
 
       await prisma.user.update({
         where: { id: user.id },
-        data: { lastActiveAt: today, streak: newStreak },
+        data: { lastActiveAt: new Date(), streak: newStreak },
       });
 
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
@@ -151,6 +153,11 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => 
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// POST /api/auth/logout (stateless JWT: client drops the token; server acknowledges)
+router.post('/logout', authenticateToken, (_req: AuthRequest, res: Response) => {
+  res.json({ success: true });
 });
 
 export default router;

@@ -52,11 +52,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const { session } = await sessionsApi.start(conceptId, phase);
 
       // Generate questions from AI
-      const { questions, conceptLabel, phaseDescription } = await aiApi.generateQuestions({
-        conceptId,
-        phase,
-        count: 7,
-      });
+      const { questions } = await aiApi.generateQuestions({ conceptId, phase, count: 7 });
 
       set({
         currentSession: session,
@@ -69,8 +65,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         sessionXP: 0,
         answers: [],
         isLoading: false,
-        conceptLabel,
-        phaseDescription,
+        conceptLabel: '',    // enriched by the caller (page component) from concept data
+        phaseDescription: '',
         isSessionComplete: false,
       });
     } catch (err: unknown) {

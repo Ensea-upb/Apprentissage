@@ -11,8 +11,6 @@ export interface GenerateQuestionsRequest {
 
 export interface GenerateQuestionsResponse {
   questions: Question[];
-  conceptLabel: string;
-  phaseDescription: string;
 }
 
 export interface ExplainConceptRequest {
@@ -41,7 +39,7 @@ export const aiApi = {
   },
 
   getDailyInsight: async (): Promise<DailyInsight> => {
-    const response = await apiClient.get<DailyInsight>('/ai/daily-insight');
+    const response = await apiClient.get<DailyInsight>('/ai/insight');
     return response.data;
   },
 

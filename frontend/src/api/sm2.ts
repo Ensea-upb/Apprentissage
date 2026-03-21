@@ -8,13 +8,13 @@ export interface SM2ReviewResponse {
 }
 
 export const sm2Api = {
-  getDueCards: async (): Promise<SM2Card[]> => {
-    const response = await apiClient.get<SM2Card[]>('/sm2/due');
+  getDueCards: async (): Promise<{ cards: SM2Card[]; count: number }> => {
+    const response = await apiClient.get<{ cards: SM2Card[]; count: number }>('/sm2/due-today');
     return response.data;
   },
 
   getDueTodayCount: async (): Promise<number> => {
-    const response = await apiClient.get<{ count: number }>('/sm2/due/count');
+    const response = await apiClient.get<{ count: number }>('/sm2/due-today/count');
     return response.data.count;
   },
 

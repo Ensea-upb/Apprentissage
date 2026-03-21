@@ -7,6 +7,39 @@ const prisma = new PrismaClient();
 
 router.use(authenticateToken);
 
+// GET /api/sessions — user's recent sessions
+router.get('/', async (req: AuthRequest, res: Response) => {
+  const userId = req.userId!;
+  try {
+    const sessions = await prisma.learningSession.findMany({
+      where: { userId },
+      orderBy: { startedAt: 'desc' },
+      take: 50,
+    });
+    res.json(sessions);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/sessions/:id — single session
+router.get('/:id', async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const userId = req.userId!;
+  try {
+    const session = await prisma.learningSession.findFirst({ where: { id, userId } });
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    res.json(session);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/sessions/start
 router.post('/start', async (req: AuthRequest, res: Response) => {
   const { conceptId, phase } = req.body as { conceptId: string; phase: number };
