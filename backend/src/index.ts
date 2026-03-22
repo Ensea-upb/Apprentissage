@@ -4,11 +4,16 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 
 // ── Validate required environment variables before anything else ──
-const REQUIRED_ENV = ['JWT_SECRET', 'DATABASE_URL', 'ANTHROPIC_API_KEY'];
+const REQUIRED_ENV = ['JWT_SECRET', 'DATABASE_URL'];
 const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
 if (missing.length > 0) {
   console.error(`FATAL: Missing required environment variables: ${missing.join(', ')}`);
   process.exit(1);
+}
+
+// ANTHROPIC_API_KEY is optional — Ollama local AI is used as fallback
+if (!process.env.ANTHROPIC_API_KEY || !process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-')) {
+  console.warn('[AI] No valid Anthropic key → will use Ollama local inference (OLLAMA_HOST:', process.env.OLLAMA_HOST || 'http://host.docker.internal:11434', ')');
 }
 
 import authRoutes from './routes/auth';
