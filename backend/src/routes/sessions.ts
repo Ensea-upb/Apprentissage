@@ -129,14 +129,21 @@ router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const completed = await prisma.learningSession.update({
-      where: { id },
-      data: { completedAt: new Date() },
-    });
+    const [completed, currentUser] = await Promise.all([
+      prisma.learningSession.update({ where: { id }, data: { completedAt: new Date() } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { level: true, xp: true } }),
+    ]);
 
     const accuracy = completed.questionsAsked > 0
       ? (completed.correctAnswers / completed.questionsAsked) * 100
       : 0;
+
+    // Detect level-up: compare stored level to what it should be given current XP
+    const computedLevel = getLevelFromXP(currentUser?.xp ?? 0);
+    const levelUp = computedLevel > (currentUser?.level ?? 1);
+    if (levelUp) {
+      await prisma.user.update({ where: { id: userId }, data: { level: computedLevel } });
+    }
 
     res.json({
       sessionId: completed.id,
@@ -148,6 +155,9 @@ router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
       xpEarned: completed.xpEarned,
       errorBreakdown: completed.errorTypes,
       phaseCompleted: accuracy >= 60,
+      levelUp,
+      newLevel: computedLevel,
+      newXPTotal: currentUser?.xp ?? 0,
     });
   } catch (err) {
     console.error(err);

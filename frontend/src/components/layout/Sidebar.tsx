@@ -16,7 +16,8 @@ import { getLevelTitle, getProgressToNextLevel } from '../../utils/levelUtils';
 export default function Sidebar() {
   const location = useLocation();
   const { user } = useAuthStore();
-  const { dueTodayCount } = useProgressStore();
+  const { dueTodayCount, conceptProgress } = useProgressStore();
+  const masteredCount = Object.values(conceptProgress).filter((p) => p.isValidated).length;
 
   const navLinks = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -108,7 +109,7 @@ export default function Sidebar() {
                   <span>Concepts</span>
                 </div>
                 <span className="text-emerald-400 text-xs font-semibold">
-                  {user.level * 2}
+                  {masteredCount} maîtrisés
                 </span>
               </div>
               <div className="flex items-center justify-between">
