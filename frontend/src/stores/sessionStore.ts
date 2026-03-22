@@ -99,7 +99,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       });
     } catch (err: unknown) {
       const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
         'Erreur lors du démarrage de la session.';
       set({ isLoading: false, error: message });
       throw err;

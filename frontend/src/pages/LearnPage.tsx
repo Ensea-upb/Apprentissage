@@ -320,7 +320,13 @@ export default function LearnPage() {
     setPhaseStarted(true);
     setSessionResult(null);
     setShowResultModal(false);
-    await startSession(conceptId!, phase);
+    try {
+      await startSession(conceptId!, phase);
+    } catch {
+      // startSession already stored the error in the store.
+      // Reset phaseStarted so the phase selector reappears alongside the error banner.
+      setPhaseStarted(false);
+    }
   };
 
   const handleAnswer = useCallback(
