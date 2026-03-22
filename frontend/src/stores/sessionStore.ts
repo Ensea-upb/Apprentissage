@@ -30,6 +30,32 @@ const INITIAL_LIVES = 3;
 const XP_PER_CORRECT = 10;
 const XP_STREAK_BONUS = 5;
 
+/**
+ * Sort questions by difficulty (ascending) then Fisher-Yates shuffle within
+ * each difficulty tier so the order is random but always progresses 1→5.
+ */
+function sortAndShuffle(questions: Question[]): Question[] {
+  // Group by difficulty
+  const groups = new Map<number, Question[]>();
+  for (const q of questions) {
+    const d = q.difficulty ?? 2;
+    if (!groups.has(d)) groups.set(d, []);
+    groups.get(d)!.push(q);
+  }
+  // For each difficulty tier, shuffle in-place (Fisher-Yates)
+  const result: Question[] = [];
+  const tiers = [...groups.keys()].sort((a, b) => a - b);
+  for (const tier of tiers) {
+    const qs = groups.get(tier)!;
+    for (let i = qs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [qs[i], qs[j]] = [qs[j], qs[i]];
+    }
+    result.push(...qs);
+  }
+  return result;
+}
+
 export const useSessionStore = create<SessionState>((set, get) => ({
   currentSession: null,
   currentQuestion: null,
@@ -52,8 +78,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Start a session on the backend
       const { session } = await sessionsApi.start(conceptId, phase);
 
-      // Generate questions from AI
-      const { questions } = await aiApi.generateQuestions({ conceptId, phase, count: 7 });
+      // Generate questions from AI — sort by difficulty then shuffle within tiers
+      const { questions: raw } = await aiApi.generateQuestions({ conceptId, phase, count: 7 });
+      const questions = sortAndShuffle(raw);
 
       set({
         currentSession: session,

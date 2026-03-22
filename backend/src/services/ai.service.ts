@@ -120,6 +120,31 @@ const JSON_SCHEMA = `{
   ]
 }`;
 
+/**
+ * Generates a difficulty distribution spec for a given count.
+ * Distributes questions across [minD..maxD] with a gentle ramp-up.
+ */
+function diffSpec(count: number, minD: number, maxD: number): string {
+  const range = maxD - minD + 1;
+  // Assign weights: more questions at lower difficulties
+  const weights: number[] = [];
+  for (let d = minD; d <= maxD; d++) {
+    // Weight decreases as difficulty increases: first level gets 2x the last
+    weights.push(maxD - d + 2);
+  }
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const counts: number[] = weights.map((w) => Math.max(1, Math.round((w / totalWeight) * count)));
+
+  // Adjust to hit exact count
+  let diff = count - counts.reduce((a, b) => a + b, 0);
+  for (let i = 0; diff > 0; i = (i + 1) % range, diff--) counts[i]++;
+  for (let i = range - 1; diff < 0; i = (i - 1 + range) % range, diff++) {
+    if (counts[i] > 1) counts[i]--;
+  }
+
+  return counts.map((n, i) => `  - ${n} question${n > 1 ? 's' : ''} difficulty=${minD + i}`).join('\n');
+}
+
 function buildPhase1Prompt(conceptId: string, conceptLabel: string, moduleName: string, blockName: string, count: number): string {
   const id = sanitize(conceptId);
   const label = sanitize(conceptLabel);
@@ -130,17 +155,20 @@ Contexte : Module "${mod}", Bloc "${blk}".
 
 OBJECTIF : Tester la compréhension profonde de l'intuition, PAS la mémorisation de définitions.
 
+DISTRIBUTION DE DIFFICULTÉ OBLIGATOIRE (difficulty 1=facile → 5=expert) :
+${diffSpec(count, 1, 3)}
+Les questions DOIVENT respecter exactement cette distribution. Commencer simple (analogie/intuition pure) et finir par des contre-exemples ou pièges conceptuels.
+
 CONTRAINTES STRICTES :
 - Aucune formule mathématique (phase intuition)
 - Utilise des analogies concrètes du quotidien ou des contre-exemples
-- Chaque question doit avoir UN SEUL concept testé précis
+- Les questions difficulty=1 posent l'intuition fondamentale
+- Les questions difficulty=2 testent la compréhension des implications
+- Les questions difficulty=3 sont des "pièges" (idées reçues courantes sur ce concept)
 - Les 4 options QCM doivent toutes être plausibles — évite les distracteurs évidents
-- Au moins 2 questions doivent être "pièges" (idées reçues courantes sur ce concept)
-- Les questions Vrai/Faux doivent porter sur des affirmations non triviales
-- Progressif : du conceptuel au contre-intuitif
 - INTERDIT : questions du type "Qu'est-ce que X ?" ou "Quelle est la définition de X ?"
 - INTERDIT : options absurdes ou hors sujet
-- Formats autorisés : mcq, truefalse, completion, analogy, ordering
+- Formats autorisés : mcq, truefalse, completion, analogy
 
 Réponds UNIQUEMENT en JSON valide, sans markdown, sans commentaires :
 ${JSON_SCHEMA}`;
@@ -156,12 +184,15 @@ Contexte : Module "${mod}", Bloc "${blk}".
 
 OBJECTIF : Tester la maîtrise mathématique réelle, pas juste les formules.
 
+DISTRIBUTION DE DIFFICULTÉ OBLIGATOIRE :
+${diffSpec(count, 2, 4)}
+Les questions difficulty=2 : définition formelle et notation standard.
+Les questions difficulty=3 : hypothèses, conditions, cas limites.
+Les questions difficulty=4 : calcul guidé, preuve partielle, ou erreur classique subtile.
+
 CONTRAINTES STRICTES :
-- Utilise la notation mathématique standard (LaTeX inline avec $...$ ou $$...$$)
-- Chaque question doit porter sur UN résultat précis : définition formelle, hypothèse nécessaire, cas limite, preuve, calcul
-- Les QCM doivent utiliser des valeurs numériques précises dans les options (ex: λ=0.01, n=∞, p=0.5)
-- Au moins 2 questions doivent porter sur les HYPOTHÈSES ou LIMITES du concept (quand ça ne marche pas)
-- Au moins 1 question de calcul guidé avec étapes intermédiaires
+- Utilise la notation mathématique standard (LaTeX inline avec $...$)
+- Les QCM doivent utiliser des valeurs numériques précises dans les options (ex: λ=0.01, n=∞)
 - Les distracteurs doivent être des erreurs de calcul courantes (ex: confondre variance et écart-type)
 - INTERDIT : questions génériques sans formules précises
 - INTERDIT : options comme "Aucune des réponses" ou "Toutes les réponses"
@@ -180,13 +211,17 @@ function buildPhase3Prompt(conceptId: string, conceptLabel: string, moduleName: 
 
 OBJECTIF : Tester le jugement pratique et la capacité à choisir la bonne approche.
 
+DISTRIBUTION DE DIFFICULTÉ OBLIGATOIRE :
+${diffSpec(count, 2, 4)}
+Les questions difficulty=2 : choix de base dans un contexte simple.
+Les questions difficulty=3 : arbitrages complexes, paramètres non-évidents.
+Les questions difficulty=4 : erreurs silencieuses en production (data leakage, wrong metric, biais).
+
 CONTRAINTES STRICTES :
 - Crée un mini-scénario business cohérent (dataset e-commerce, médical, finance, etc.) avec données synthétiques précises
 - Les questions doivent porter sur des choix de conception (pourquoi ce paramètre ? quand utiliser X vs Y ?)
-- Inclure au moins 1 question sur les erreurs classiques en production (data leakage, wrong metric, etc.)
-- Toutes les options doivent être réalistes — pas d'options absurdes
 - Les explications doivent citer des chiffres ou des règles pratiques ("dans 80% des cas...", "au-delà de N=10000...")
-- Au moins 1 question sur l'interprétation du résultat pour un stakeholder non technique
+- Toutes les options doivent être réalistes — pas d'options absurdes
 - INTERDIT : questions purement théoriques sans contexte applicatif
 
 Réponds UNIQUEMENT en JSON valide, sans markdown :
@@ -202,12 +237,16 @@ function buildPhase4Prompt(conceptId: string, conceptLabel: string, moduleName: 
 
 OBJECTIF : Tester la capacité à optimiser et diagnostiquer en conditions réelles.
 
+DISTRIBUTION DE DIFFICULTÉ OBLIGATOIRE :
+${diffSpec(count, 3, 5)}
+Les questions difficulty=3 : lecture de métriques et diagnostic basique.
+Les questions difficulty=4 : optimisation multi-critères, choix de pipeline.
+Les questions difficulty=5 : pièges avancés (leakage caché, distribution shift, metric gaming).
+
 CONTRAINTES STRICTES :
 - Questions spécifiques avec des métriques chiffrées (ex: AUC passe de 0.82 à 0.79, que faire ?)
-- Couvrir : choix de métrique selon la distribution, validation croisée, diagnostic overfitting/underfitting, trade-offs computationnels
-- Inclure des questions de diagnostic ("Le score train=0.98, val=0.71 — quelle est la cause la plus probable et le meilleur remède ?")
+- Inclure des questions de diagnostic ("score train=0.98, val=0.71 — cause et remède ?")
 - Les options doivent toutes être des solutions valides mais avec efficacités différentes
-- Au moins 1 question sur un piège classique de compétition (data leakage, label encoding vs target encoding, etc.)
 - Utiliser des noms d'algorithmes précis (XGBoost, LightGBM, optuna, etc.)
 - INTERDIT : questions sans contexte de performance chiffré
 
@@ -224,13 +263,18 @@ function buildPhase5Prompt(conceptId: string, conceptLabel: string, moduleName: 
 
 OBJECTIF : Tester la maîtrise réelle du code, pas juste la syntaxe.
 
+DISTRIBUTION DE DIFFICULTÉ OBLIGATOIRE :
+${diffSpec(count, 2, 5)}
+Les questions difficulty=2 : complétion de code simple, syntaxe API.
+Les questions difficulty=3 : output-prediction, fit vs fit_transform, ordre d'opérations.
+Les questions difficulty=4 : bug-finding subtil (wrong axis, data leakage dans pipeline).
+Les questions difficulty=5 : refactoring, edge-case silencieux (NaN, dtype, shapes).
+
 CONTRAINTES STRICTES :
-- Types : fill-in-the-blank (complétion), bug-finding (trouver l'erreur), output-prediction (quel est le résultat ?), refactoring (meilleure version)
+- Types : fill-in-the-blank, bug-finding, output-prediction, refactoring
 - Chaque extrait de code doit être réaliste et fonctionnel (imports inclus si nécessaires)
-- Utilise scikit-learn, numpy, pandas, PyTorch, ou SQLAlchemy selon le contexte du concept
+- Utilise scikit-learn, numpy, pandas, PyTorch selon le contexte
 - Les bugs doivent être subtils (ex: wrong axis, off-by-one, data leakage dans un pipeline)
-- Les options de complétion doivent inclure des alternatives presque correctes (ex: fit() vs fit_transform())
-- Au moins 1 question sur le comportement edge-case (tableau vide, NaN, dtype incompatible)
 - Code formaté avec indentation correcte dans le champ "question"
 - INTERDIT : questions sur la syntaxe de base Python sans lien avec le concept ML
 
@@ -247,13 +291,18 @@ function buildPhase6Prompt(conceptId: string, conceptLabel: string, moduleName: 
 
 OBJECTIF : Tester la pensée critique et la connaissance de la littérature.
 
+DISTRIBUTION DE DIFFICULTÉ OBLIGATOIRE :
+${diffSpec(count, 3, 5)}
+Les questions difficulty=3 : papiers fondateurs, contributions clés, contexte historique.
+Les questions difficulty=4 : analyse critique d'hypothèses, comparaison d'approches.
+Les questions difficulty=5 : limites ouvertes, directions de recherche, reproductibilité.
+
 CONTRAINTES STRICTES :
 - Questions basées sur des papiers fondateurs réels avec citations (auteurs, année, venue)
-- Couvrir : analyse critique des hypothèses, comparaison d'approches concurrentes dans la littérature, contributions originales vs améliorations ultérieures
+- Couvrir : analyse critique des hypothèses, comparaison d'approches concurrentes
 - Inclure des questions "Pourquoi les auteurs de [papier X] ont-ils choisi Y plutôt que Z ?"
-- Au moins 1 question sur les limites connues et les papiers qui les ont adressées
-- Au moins 1 question sur l'état de l'art actuel et les directions de recherche ouvertes
 - Les explications doivent citer les papiers (ex: "Comme montré dans Vaswani et al. 2017...")
+- Au moins 1 question sur l'état de l'art actuel et les directions de recherche ouvertes
 - INTERDIT : questions sans références à la littérature réelle
 - INTERDIT : questions de niveau vulgarisation
 
