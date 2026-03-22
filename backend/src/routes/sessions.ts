@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { getLevelFromXP } from '../utils/level';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -96,9 +97,12 @@ router.post('/:id/answer', async (req: AuthRequest, res: Response) => {
     });
 
     if (xpGain > 0) {
+      const currentUser = await prisma.user.findUnique({ where: { id: userId }, select: { xp: true } });
+      const newXP = (currentUser?.xp ?? 0) + xpGain;
+      const newLevel = getLevelFromXP(newXP);
       await prisma.user.update({
         where: { id: userId },
-        data: { xp: { increment: xpGain }, dataCoins: { increment: coinGain } },
+        data: { xp: { increment: xpGain }, dataCoins: { increment: coinGain }, level: newLevel },
       });
     }
 

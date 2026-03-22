@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { CONCEPTS } from '../data/concepts';
+import { getLevelFromXP } from '../utils/level';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -219,9 +220,12 @@ router.post('/:conceptId/phase/:phase/complete', async (req: AuthRequest, res: R
         create: { userId, conceptId, xpEarned, ...updateData },
       });
 
+      const currentUser = await tx.user.findUnique({ where: { id: userId }, select: { xp: true } });
+      const newXP = (currentUser?.xp ?? 0) + xpEarned;
+      const newLevel = getLevelFromXP(newXP);
       await tx.user.update({
         where: { id: userId },
-        data: { xp: { increment: xpEarned }, dataCoins: { increment: coinsEarned } },
+        data: { xp: { increment: xpEarned }, dataCoins: { increment: coinsEarned }, level: newLevel },
       });
 
       // When concept is newly validated, create or reset its SM-2 review card
