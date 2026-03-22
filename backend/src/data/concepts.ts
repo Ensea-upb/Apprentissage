@@ -252,4 +252,41 @@ export const CONCEPTS: Concept[] = [
   { id: '9.1.05', blockId: 9, moduleId: '9.1', blockName: 'Reinforcement Learning', moduleName: 'RL Fondamentaux', label: 'Actor-Critic & PPO', prerequisites: ['9.1.04'] },
   { id: '9.1.06', blockId: 9, moduleId: '9.1', blockName: 'Reinforcement Learning', moduleName: 'RL Fondamentaux', label: 'AlphaGo & RL basé sur les jeux', prerequisites: ['9.1.05'], paperRef: 'Silver et al. 2016' },
   { id: '9.1.07', blockId: 9, moduleId: '9.1', blockName: 'Reinforcement Learning', moduleName: 'RL Fondamentaux', label: 'RL hors ligne (Offline RL)', prerequisites: ['9.1.06'] },
+
+  // ── BLOCK 10 : Bases de Données & Data Engineering ─────────────────────────
+  // Accessible dès Python + Pandas (prérequis 1.3.04) — pas besoin du ML
+
+  // Module 10.1 – SQL & Bases relationnelles
+  { id: '10.1.01', blockId: 10, moduleId: '10.1', blockName: 'Bases de Données', moduleName: 'SQL & Relationnel', label: 'Modèle relationnel & algèbre relationnelle', prerequisites: ['1.3.04'] },
+  { id: '10.1.02', blockId: 10, moduleId: '10.1', blockName: 'Bases de Données', moduleName: 'SQL & Relationnel', label: 'SELECT, WHERE, GROUP BY, HAVING', prerequisites: ['10.1.01'] },
+  { id: '10.1.03', blockId: 10, moduleId: '10.1', blockName: 'Bases de Données', moduleName: 'SQL & Relationnel', label: 'JOIN (INNER, LEFT, RIGHT, FULL, CROSS)', prerequisites: ['10.1.02'] },
+  { id: '10.1.04', blockId: 10, moduleId: '10.1', blockName: 'Bases de Données', moduleName: 'SQL & Relationnel', label: 'Sous-requêtes & CTEs (WITH)', prerequisites: ['10.1.03'] },
+  { id: '10.1.05', blockId: 10, moduleId: '10.1', blockName: 'Bases de Données', moduleName: 'SQL & Relationnel', label: 'Fonctions fenêtrées (WINDOW FUNCTIONS)', prerequisites: ['10.1.04'] },
+  { id: '10.1.06', blockId: 10, moduleId: '10.1', blockName: 'Bases de Données', moduleName: 'SQL & Relationnel', label: 'Indexation & plan d\'exécution (EXPLAIN)', prerequisites: ['10.1.05'] },
+  { id: '10.1.07', blockId: 10, moduleId: '10.1', blockName: 'Bases de Données', moduleName: 'SQL & Relationnel', label: 'Transactions ACID & niveaux d\'isolation', prerequisites: ['10.1.06'] },
+  { id: '10.1.08', blockId: 10, moduleId: '10.1', blockName: 'Bases de Données', moduleName: 'SQL & Relationnel', label: 'Normalisation (1NF, 2NF, 3NF, BCNF)', prerequisites: ['10.1.07'] },
+  { id: '10.1.09', blockId: 10, moduleId: '10.1', blockName: 'Bases de Données', moduleName: 'SQL & Relationnel', label: 'SQL analytique & optimisation de requêtes', prerequisites: ['10.1.08'] },
+
+  // Module 10.2 – Modélisation & Conception
+  { id: '10.2.01', blockId: 10, moduleId: '10.2', blockName: 'Bases de Données', moduleName: 'Modélisation', label: 'Modélisation entité-relation (ERD)', prerequisites: ['10.1.09'] },
+  { id: '10.2.02', blockId: 10, moduleId: '10.2', blockName: 'Bases de Données', moduleName: 'Modélisation', label: 'Schémas en étoile & flocon (Data Warehouse)', prerequisites: ['10.2.01'] },
+  { id: '10.2.03', blockId: 10, moduleId: '10.2', blockName: 'Bases de Données', moduleName: 'Modélisation', label: 'OLTP vs OLAP — différences et cas d\'usage', prerequisites: ['10.2.02'] },
+  { id: '10.2.04', blockId: 10, moduleId: '10.2', blockName: 'Bases de Données', moduleName: 'Modélisation', label: 'Partitionnement & sharding', prerequisites: ['10.2.03'] },
+
+  // Module 10.3 – NoSQL & Bases distribuées
+  { id: '10.3.01', blockId: 10, moduleId: '10.3', blockName: 'Bases de Données', moduleName: 'NoSQL & Distribué', label: 'Théorème CAP & BASE vs ACID', prerequisites: ['10.2.04'] },
+  { id: '10.3.02', blockId: 10, moduleId: '10.3', blockName: 'Bases de Données', moduleName: 'NoSQL & Distribué', label: 'Bases document (MongoDB)', prerequisites: ['10.3.01'] },
+  { id: '10.3.03', blockId: 10, moduleId: '10.3', blockName: 'Bases de Données', moduleName: 'NoSQL & Distribué', label: 'Bases clé-valeur & cache (Redis)', prerequisites: ['10.3.02'] },
+  { id: '10.3.04', blockId: 10, moduleId: '10.3', blockName: 'Bases de Données', moduleName: 'NoSQL & Distribué', label: 'Bases colonne large (Cassandra, HBase)', prerequisites: ['10.3.03'] },
+  { id: '10.3.05', blockId: 10, moduleId: '10.3', blockName: 'Bases de Données', moduleName: 'NoSQL & Distribué', label: 'Bases graphes (Neo4j & Cypher)', prerequisites: ['10.3.04'] },
+  { id: '10.3.06', blockId: 10, moduleId: '10.3', blockName: 'Bases de Données', moduleName: 'NoSQL & Distribué', label: 'Bases vectorielles (Pinecone, Weaviate, pgvector)', prerequisites: ['10.3.05'] },
+  { id: '10.3.07', blockId: 10, moduleId: '10.3', blockName: 'Bases de Données', moduleName: 'NoSQL & Distribué', label: 'Elasticsearch & recherche full-text', prerequisites: ['10.3.06'] },
+
+  // Module 10.4 – Data Engineering & ETL
+  { id: '10.4.01', blockId: 10, moduleId: '10.4', blockName: 'Bases de Données', moduleName: 'Data Engineering', label: 'Pipelines ETL vs ELT', prerequisites: ['10.3.07'] },
+  { id: '10.4.02', blockId: 10, moduleId: '10.4', blockName: 'Bases de Données', moduleName: 'Data Engineering', label: 'Apache Kafka & streaming temps-réel', prerequisites: ['10.4.01'] },
+  { id: '10.4.03', blockId: 10, moduleId: '10.4', blockName: 'Bases de Données', moduleName: 'Data Engineering', label: 'Apache Spark & traitement batch distribué', prerequisites: ['10.4.02'] },
+  { id: '10.4.04', blockId: 10, moduleId: '10.4', blockName: 'Bases de Données', moduleName: 'Data Engineering', label: 'Data Lake vs Data Warehouse vs Lakehouse', prerequisites: ['10.4.03'] },
+  { id: '10.4.05', blockId: 10, moduleId: '10.4', blockName: 'Bases de Données', moduleName: 'Data Engineering', label: 'dbt & transformation SQL en production', prerequisites: ['10.4.04'] },
+  { id: '10.4.06', blockId: 10, moduleId: '10.4', blockName: 'Bases de Données', moduleName: 'Data Engineering', label: 'Qualité des données & Data Contracts', prerequisites: ['10.4.05'] },
 ];

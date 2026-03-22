@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -219,6 +219,7 @@ export default function LearnPage() {
   const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
   const [showResultModal, setShowResultModal] = useState(false);
   const [phaseStarted, setPhaseStarted] = useState(false);
+  const isEndingSession = useRef(false);
 
   useEffect(() => {
     if (conceptId) {
@@ -249,19 +250,12 @@ export default function LearnPage() {
     }
   }, [conceptId, conceptProgress]);
 
-  // Watch for session completion
+  // Watch for session completion (all questions answered)
   useEffect(() => {
-    if (isSessionComplete && currentSession) {
+    if (isSessionComplete && currentSession && !isEndingSession.current) {
       handleSessionEnd();
     }
   }, [isSessionComplete]);
-
-  // If lives run out
-  useEffect(() => {
-    if (phaseStarted && lives === 0 && !showResultModal) {
-      handleSessionEnd();
-    }
-  }, [lives, phaseStarted]);
 
   const loadConcept = async () => {
     try {
@@ -304,6 +298,11 @@ export default function LearnPage() {
   );
 
   const handleNext = () => {
+    // If no lives left, end the session after the user has seen the explanation
+    if (lives === 0) {
+      handleSessionEnd();
+      return;
+    }
     setIsAnswered(false);
     setSelectedAnswer(undefined);
     setIsCorrect(undefined);
@@ -311,18 +310,21 @@ export default function LearnPage() {
   };
 
   const handleSessionEnd = async () => {
+    if (isEndingSession.current) return;
+    isEndingSession.current = true;
     try {
       const result = await endSession();
       setSessionResult(result);
       setShowResultModal(true);
       setPhaseStarted(false);
-      // Update user XP optimistically
       if (result.xpEarned > 0) {
-        updateUser({ xp: undefined }); // triggers re-fetch on next nav
+        updateUser({ xp: undefined });
       }
       await refreshProgress();
     } catch (err) {
       console.error('Failed to end session', err);
+    } finally {
+      isEndingSession.current = false;
     }
   };
 
