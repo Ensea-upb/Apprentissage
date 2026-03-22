@@ -198,7 +198,7 @@ export default function LearnPage() {
   const { conceptId } = useParams<{ conceptId: string }>();
   const navigate = useNavigate();
 
-  const { updateUser } = useAuthStore();
+  const { checkAuth } = useAuthStore();
   const { refreshProgress, conceptProgress } = useProgressStore();
   const {
     currentSession, currentQuestion, questions, questionIndex,
@@ -317,10 +317,8 @@ export default function LearnPage() {
       setSessionResult(result);
       setShowResultModal(true);
       setPhaseStarted(false);
-      if (result.xpEarned > 0) {
-        updateUser({ xp: undefined });
-      }
-      await refreshProgress();
+      // Refresh user data and progress after session (XP/coins may have changed)
+      await Promise.all([checkAuth(), refreshProgress()]);
     } catch (err) {
       console.error('Failed to end session', err);
     } finally {

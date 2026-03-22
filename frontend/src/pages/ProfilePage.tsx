@@ -15,7 +15,7 @@ import Badge from '../components/common/Badge';
 import { useAuthStore } from '../stores/authStore';
 import { useProgressStore } from '../stores/progressStore';
 import { progressApi } from '../api/progress';
-import { UserStats, ErrorType } from '../types';
+import { UserStats, ErrorType, SkillLevel } from '../types';
 import {
   getLevelTitle, getProgressToNextLevel, getXPForLevel, formatXP,
 } from '../utils/levelUtils';
@@ -122,15 +122,16 @@ export default function ProfilePage() {
         { name: 'Lecture', value: 15, color: '#F43F5E' },
       ];
 
-  // Radar data for skills
-  const radarData = [
-    { subject: 'Stats', value: 70 },
-    { subject: 'ML', value: 55 },
-    { subject: 'Deep Learning', value: 30 },
-    { subject: 'NLP', value: 40 },
-    { subject: 'MLOps', value: 20 },
-    { subject: 'Maths', value: 65 },
+  // Radar data for skills — real data from backend, fallback to zeros
+  const DEFAULT_SKILLS: SkillLevel[] = [
+    { subject: 'Maths', value: 0 },
+    { subject: 'Données', value: 0 },
+    { subject: 'ML', value: 0 },
+    { subject: 'Deep Learning', value: 0 },
+    { subject: 'NLP / LLM', value: 0 },
+    { subject: 'MLOps / BDD', value: 0 },
   ];
+  const radarData: SkillLevel[] = stats?.skills && stats.skills.length > 0 ? stats.skills : DEFAULT_SKILLS;
 
   const initials = user?.username?.slice(0, 2).toUpperCase() || 'DQ';
   const joinDate = user?.createdAt

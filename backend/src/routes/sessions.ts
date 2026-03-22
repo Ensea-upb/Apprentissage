@@ -143,7 +143,7 @@ router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
       accuracy,
       xpEarned: completed.xpEarned,
       errorBreakdown: completed.errorTypes,
-      phaseCompleted: false,
+      phaseCompleted: accuracy >= 60,
     });
   } catch (err) {
     console.error(err);

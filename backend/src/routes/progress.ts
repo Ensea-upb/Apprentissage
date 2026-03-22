@@ -64,6 +64,26 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
       };
     });
 
+    // Per-block skill levels (0-100) for radar chart
+    const SKILL_BLOCKS: Array<{ subject: string; blockIds: number[] }> = [
+      { subject: 'Maths',        blockIds: [0] },
+      { subject: 'Données',      blockIds: [1, 2] },
+      { subject: 'ML',           blockIds: [3] },
+      { subject: 'Deep Learning',blockIds: [4, 5] },
+      { subject: 'NLP / LLM',   blockIds: [6, 8] },
+      { subject: 'MLOps / BDD',  blockIds: [7, 9, 10] },
+    ];
+
+    const validatedIds = new Set(progress.filter((p) => p.isValidated).map((p) => p.conceptId));
+
+    const skills = SKILL_BLOCKS.map(({ subject, blockIds }) => {
+      const blockConcepts = CONCEPTS.filter((c) => blockIds.includes(c.blockId));
+      const total = blockConcepts.length;
+      if (total === 0) return { subject, value: 0 };
+      const mastered = blockConcepts.filter((c) => validatedIds.has(c.id)).length;
+      return { subject, value: Math.round((mastered / total) * 100) };
+    });
+
     res.json({
       conceptsMastered: validated,
       totalConcepts: progress.length,
@@ -72,6 +92,7 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
       totalSessions,
       errorBreakdown,
       recentActivity,
+      skills,
     });
   } catch (err) {
     console.error(err);

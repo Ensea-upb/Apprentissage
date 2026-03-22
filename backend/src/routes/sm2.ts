@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { sm2Update, accuracyToQuality } from '../services/sm2.service';
 import { computeDecay } from '../services/decay.service';
+import { CONCEPTS } from '../data/concepts';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -44,11 +45,16 @@ router.get('/due-today', async (req: AuthRequest, res: Response) => {
       orderBy: { nextReviewDate: 'asc' },
     });
 
-    // Update decay levels
-    const updated = cards.map((card) => ({
-      ...card,
-      decayLevel: computeDecay(card.lastReviewDate, card.interval),
-    }));
+    // Update decay levels and enrich with concept metadata
+    const updated = cards.map((card) => {
+      const concept = CONCEPTS.find((c) => c.id === card.conceptId);
+      return {
+        ...card,
+        decayLevel: computeDecay(card.lastReviewDate, card.interval),
+        conceptLabel: concept?.label,
+        blockName: concept?.blockName,
+      };
+    });
 
     res.json({ cards: updated, count: updated.length });
   } catch (err) {

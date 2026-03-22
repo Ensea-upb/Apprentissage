@@ -134,6 +134,11 @@ export interface DailyInsight {
   mathFormula?: string;
 }
 
+export interface SkillLevel {
+  subject: string;
+  value: number;
+}
+
 export interface UserStats {
   totalXP: number;
   level: number;
@@ -146,6 +151,7 @@ export interface UserStats {
   dataCoins: number;
   errorBreakdown: Record<ErrorType, number>;
   recentActivity: ActivityItem[];
+  skills?: SkillLevel[];
 }
 
 export interface ActivityItem {
