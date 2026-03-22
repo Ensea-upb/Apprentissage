@@ -21,6 +21,9 @@ import sm2Routes from './routes/sm2';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
+// Trust nginx reverse proxy (required for correct IP in rate limiting)
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors({
   origin: process.env.CORS_ORIGIN || ['http://localhost:5173', 'http://localhost:3000'],

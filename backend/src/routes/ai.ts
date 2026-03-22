@@ -3,6 +3,108 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { generateQuestions, evaluateAnswer, getDailyInsight } from '../services/ai.service';
 import { CONCEPTS } from '../data/concepts';
 
+function buildFallbackQuestions(conceptLabel: string, count: number) {
+  const base = [
+    {
+      id: 'fq-1',
+      type: 'mcq' as const,
+      question: `Quelle est la définition la plus précise de "${conceptLabel}" ?`,
+      options: [
+        `${conceptLabel} est une technique fondamentale en Data Science.`,
+        `${conceptLabel} est uniquement utilisé en statistiques descriptives.`,
+        `${conceptLabel} ne s'applique qu'aux données non structurées.`,
+        `${conceptLabel} est un algorithme de tri.`,
+      ],
+      correctAnswer: `${conceptLabel} est une technique fondamentale en Data Science.`,
+      explanation: `${conceptLabel} joue un rôle central dans l'analyse et la modélisation des données.`,
+      difficulty: 1,
+    },
+    {
+      id: 'fq-2',
+      type: 'truefalse' as const,
+      question: `${conceptLabel} peut être utilisé dans des pipelines de Machine Learning.`,
+      options: ['Vrai', 'Faux'],
+      correctAnswer: 'Vrai',
+      explanation: `La plupart des concepts fondamentaux comme ${conceptLabel} s'intègrent dans des pipelines ML.`,
+      difficulty: 1,
+    },
+    {
+      id: 'fq-3',
+      type: 'mcq' as const,
+      question: `Dans quel contexte applique-t-on typiquement ${conceptLabel} ?`,
+      options: [
+        'Lors de la phase d\'exploration et de préparation des données.',
+        'Uniquement lors de la mise en production.',
+        'Seulement pour les images.',
+        'Exclusivement pour les séries temporelles.',
+      ],
+      correctAnswer: 'Lors de la phase d\'exploration et de préparation des données.',
+      explanation: `${conceptLabel} intervient principalement dans les premières phases du cycle de vie d'un projet Data Science.`,
+      difficulty: 2,
+    },
+    {
+      id: 'fq-4',
+      type: 'mcq' as const,
+      question: `Quel avantage principal offre la maîtrise de ${conceptLabel} ?`,
+      options: [
+        'Améliorer la qualité et la pertinence des modèles.',
+        'Éliminer le besoin de données.',
+        'Remplacer tous les autres algorithmes.',
+        'Aucun avantage mesurable.',
+      ],
+      correctAnswer: 'Améliorer la qualité et la pertinence des modèles.',
+      explanation: `Comprendre ${conceptLabel} permet de construire des modèles plus robustes et interprétables.`,
+      difficulty: 2,
+    },
+    {
+      id: 'fq-5',
+      type: 'truefalse' as const,
+      question: `${conceptLabel} nécessite une bonne compréhension des mathématiques sous-jacentes pour être utilisé efficacement.`,
+      options: ['Vrai', 'Faux'],
+      correctAnswer: 'Vrai',
+      explanation: `Comme la plupart des concepts en Data Science, ${conceptLabel} repose sur des fondations mathématiques solides.`,
+      difficulty: 2,
+    },
+    {
+      id: 'fq-6',
+      type: 'mcq' as const,
+      question: `Quelle est une erreur courante lors de l'application de ${conceptLabel} ?`,
+      options: [
+        'Ignorer les hypothèses de base du concept.',
+        'Utiliser trop de données.',
+        'Documenter le code.',
+        'Tester le modèle.',
+      ],
+      correctAnswer: 'Ignorer les hypothèses de base du concept.',
+      explanation: `Ne pas respecter les hypothèses de ${conceptLabel} conduit à des résultats erronés ou trompeurs.`,
+      difficulty: 3,
+    },
+    {
+      id: 'fq-7',
+      type: 'mcq' as const,
+      question: `Comment évaluer si ${conceptLabel} a été correctement appliqué ?`,
+      options: [
+        'En mesurant les métriques adaptées au problème.',
+        'En comptant le nombre de lignes de code.',
+        'En regardant uniquement la vitesse d\'exécution.',
+        'En vérifiant la taille du fichier de données.',
+      ],
+      correctAnswer: 'En mesurant les métriques adaptées au problème.',
+      explanation: `L'évaluation de ${conceptLabel} passe par des métriques appropriées (précision, rappel, AUC, etc.) selon le contexte.`,
+      difficulty: 3,
+    },
+  ];
+  return base.slice(0, Math.min(count, base.length));
+}
+
+const STATIC_INSIGHT = {
+  id: 'static-insight-001',
+  title: 'La règle des 80/20 en Data Science',
+  content: '80% du temps d\'un projet Data Science est consacré à la collecte, nettoyage et préparation des données. Seulement 20% est dédié à la modélisation. Maîtriser l\'exploration et la préparation des données est donc la compétence la plus précieuse.',
+  category: 'best_practice',
+  mathFormula: 'P(succès) ∝ qualité des données',
+};
+
 const router = Router();
 router.use(authenticateToken);
 
@@ -39,7 +141,8 @@ router.post('/generate-questions', async (req: AuthRequest, res: Response) => {
     res.json(result);
   } catch (err) {
     console.error('AI generation error:', err);
-    res.status(500).json({ error: 'Failed to generate questions' });
+    const fallback = buildFallbackQuestions(concept.label, questionCount);
+    res.json({ questions: fallback });
   }
 });
 
@@ -115,7 +218,7 @@ router.get('/insight', async (req: AuthRequest, res: Response) => {
     res.json(insight);
   } catch (err) {
     console.error('AI insight error:', err);
-    res.status(500).json({ error: 'Failed to generate insight' });
+    res.json(STATIC_INSIGHT);
   }
 });
 
@@ -127,7 +230,7 @@ router.get('/daily-insight', async (req: AuthRequest, res: Response) => {
     res.json(insight);
   } catch (err) {
     console.error('AI insight error:', err);
-    res.status(500).json({ error: 'Failed to generate insight' });
+    res.json(STATIC_INSIGHT);
   }
 });
 
