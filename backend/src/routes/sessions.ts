@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { getLevelFromXP } from '../utils/level';
+import { checkAndAwardBadges } from '../services/badges.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -129,21 +130,64 @@ router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    const now = new Date();
+
     const [completed, currentUser] = await Promise.all([
-      prisma.learningSession.update({ where: { id }, data: { completedAt: new Date() } }),
-      prisma.user.findUnique({ where: { id: userId }, select: { level: true, xp: true } }),
+      prisma.learningSession.update({ where: { id }, data: { completedAt: now } }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { level: true, xp: true, streak: true, eloRating: true, lastActiveAt: true },
+      }),
     ]);
 
     const accuracy = completed.questionsAsked > 0
       ? (completed.correctAnswers / completed.questionsAsked) * 100
       : 0;
 
-    // Detect level-up: compare stored level to what it should be given current XP
+    // ── Level-up detection ──
     const computedLevel = getLevelFromXP(currentUser?.xp ?? 0);
     const levelUp = computedLevel > (currentUser?.level ?? 1);
-    if (levelUp) {
-      await prisma.user.update({ where: { id: userId }, data: { level: computedLevel } });
+
+    // ── Streak update ──
+    const lastActive = currentUser?.lastActiveAt;
+    let newStreak = currentUser?.streak ?? 0;
+    if (lastActive) {
+      const today = new Date(now.toISOString().slice(0, 10));
+      const last  = new Date(lastActive.toISOString().slice(0, 10));
+      const diffDays = Math.round((today.getTime() - last.getTime()) / 86_400_000);
+      if (diffDays === 1) {
+        newStreak += 1;          // consecutive day
+      } else if (diffDays > 1) {
+        newStreak = 1;           // streak broken
+      }
+      // diffDays === 0 → same day, keep streak as-is
+    } else {
+      newStreak = 1;
     }
+
+    // ── ELO update (K=32, expected based on phase difficulty) ──
+    // Expected score assuming average opponent at "50% accuracy difficulty"
+    const expectedScore = 1 / (1 + Math.pow(10, (1500 - (currentUser?.eloRating ?? 1000)) / 400));
+    const actualScore = accuracy / 100;
+    const eloChange = Math.round(32 * (actualScore - expectedScore));
+    const newElo = Math.max(100, (currentUser?.eloRating ?? 1000) + eloChange);
+
+    // ── Persist streak + ELO + level ──
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        level: computedLevel,
+        streak: newStreak,
+        eloRating: newElo,
+        lastActiveAt: now,
+      },
+    });
+
+    // ── Badge check ──
+    const newBadges = await checkAndAwardBadges(userId, prisma, {
+      sessionAccuracy: accuracy,
+      sessionCompleted: true,
+    });
 
     res.json({
       sessionId: completed.id,
@@ -158,6 +202,10 @@ router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
       levelUp,
       newLevel: computedLevel,
       newXPTotal: currentUser?.xp ?? 0,
+      newStreak,
+      newElo,
+      eloChange,
+      newBadges,
     });
   } catch (err) {
     console.error(err);

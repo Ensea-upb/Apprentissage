@@ -22,6 +22,7 @@ import progressRoutes from './routes/progress';
 import sessionsRoutes from './routes/sessions';
 import aiRoutes from './routes/ai';
 import sm2Routes from './routes/sm2';
+import badgesRoutes from './routes/badges';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -65,6 +66,7 @@ app.use('/api/progress', progressRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/sm2', sm2Routes);
+app.use('/api/badges', badgesRoutes);
 
 // 404
 app.use((_req, res) => {

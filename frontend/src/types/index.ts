@@ -97,7 +97,10 @@ export interface SessionResult {
   newXPTotal?: number;
   levelUp?: boolean;
   newLevel?: number;
-  newBadges?: Badge[];
+  newStreak?: number;
+  newElo?: number;
+  eloChange?: number;
+  newBadges?: Array<{ id: string; name: string; icon: string }>;
 }
 
 export interface Badge {
@@ -105,8 +108,10 @@ export interface Badge {
   name: string;
   description: string;
   icon: string;
-  earnedAt?: string;
-  category: 'learning' | 'streak' | 'mastery' | 'speed' | 'special';
+  category: 'learning' | 'streak' | 'mastery' | 'speed' | 'special' | 'block' | 'performance' | 'special';
+  xpReward?: number;
+  earned?: boolean;
+  earnedAt?: string | null;
 }
 
 export interface Block {

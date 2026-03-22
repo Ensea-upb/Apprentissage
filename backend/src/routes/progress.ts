@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { CONCEPTS } from '../data/concepts';
 import { getLevelFromXP } from '../utils/level';
+import { checkAndAwardBadges } from '../services/badges.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -246,7 +247,13 @@ router.post('/:conceptId/phase/:phase/complete', async (req: AuthRequest, res: R
     }
 
     const { xpEarned, coinsEarned, conceptValidated } = result as { xpEarned: number; coinsEarned: number; conceptValidated: boolean };
-    res.json({ success: true, xpEarned, coinsEarned, conceptValidated });
+
+    // Check and award badges after progress update
+    const newBadges = await checkAndAwardBadges(userId, prisma, {
+      conceptValidated,
+    });
+
+    res.json({ success: true, xpEarned, coinsEarned, conceptValidated, newBadges });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

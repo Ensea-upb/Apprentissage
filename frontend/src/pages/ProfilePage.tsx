@@ -15,7 +15,8 @@ import Badge from '../components/common/Badge';
 import { useAuthStore } from '../stores/authStore';
 import { useProgressStore } from '../stores/progressStore';
 import { progressApi } from '../api/progress';
-import { UserStats, ErrorType, SkillLevel } from '../types';
+import { badgesApi } from '../api/badges';
+import { UserStats, ErrorType, SkillLevel, Badge } from '../types';
 import {
   getLevelTitle, getProgressToNextLevel, getXPForLevel, formatXP,
 } from '../utils/levelUtils';
@@ -34,14 +35,6 @@ const ERROR_LABELS: Record<ErrorType, string> = {
   reading: 'Lecture',
 };
 
-const MOCK_BADGES = [
-  { id: '1', name: 'Premier pas', description: 'Première session complétée', icon: '🎯', category: 'learning' },
-  { id: '2', name: 'Apprenti Statisticien', description: '5 concepts maîtrisés', icon: '📊', category: 'mastery' },
-  { id: '3', name: 'Curieux', description: '3 jours de suite', icon: '🔥', category: 'streak' },
-  { id: '4', name: 'Matheux', description: '100% en phase Math', icon: '∑', category: 'speed' },
-  { id: '5', name: 'ML Pioneer', description: 'Bloc 3 commencé', icon: '🤖', category: 'special' },
-  { id: '6', name: 'Data Explorer', description: 'Roadmap explorée', icon: '🗺️', category: 'learning' },
-];
 
 function StatCard({
   icon: Icon,
@@ -80,6 +73,8 @@ export default function ProfilePage() {
   const { user } = useAuthStore();
   const { conceptProgress, loadProgress } = useProgressStore();
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [badges, setBadges] = useState<Badge[]>([]);
+  const [badgeStats, setBadgeStats] = useState({ earnedCount: 0, totalCount: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -90,8 +85,13 @@ export default function ProfilePage() {
     setIsLoading(true);
     try {
       await loadProgress();
-      const userStats = await progressApi.getUserStats();
+      const [userStats, badgeData] = await Promise.all([
+        progressApi.getUserStats(),
+        badgesApi.getAll().catch(() => ({ badges: [], earnedCount: 0, totalCount: 0 })),
+      ]);
       setStats(userStats);
+      setBadges(badgeData.badges);
+      setBadgeStats({ earnedCount: badgeData.earnedCount, totalCount: badgeData.totalCount });
     } catch {
       // Use computed stats from progress
     } finally {
@@ -308,26 +308,38 @@ export default function ProfilePage() {
           >
             <h3 className="text-white font-semibold text-sm mb-4 flex items-center gap-2">
               <Award size={15} className="text-amber-400" />
-              Badges obtenus
-              <span className="text-slate-500 text-xs">({MOCK_BADGES.length})</span>
+              Badges
+              <span className="text-slate-500 text-xs">
+                ({badgeStats.earnedCount}/{badgeStats.totalCount || badges.length})
+              </span>
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {MOCK_BADGES.map((badge, i) => (
-                <motion.div
-                  key={badge.id}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.05 * i }}
-                  whileHover={{ scale: 1.05, y: -3 }}
-                  className="glass-elevated p-3 rounded-xl text-center cursor-default"
-                  title={badge.description}
-                >
-                  <div className="text-3xl mb-2">{badge.icon}</div>
-                  <p className="text-white text-xs font-medium leading-tight">{badge.name}</p>
-                  <p className="text-slate-600 text-xs mt-1 leading-tight">{badge.description}</p>
-                </motion.div>
-              ))}
-            </div>
+            {badges.length === 0 ? (
+              <p className="text-slate-500 text-sm">Chargement des badges…</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {badges.map((badge, i) => (
+                  <motion.div
+                    key={badge.id}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.03 * i }}
+                    whileHover={badge.earned ? { scale: 1.05, y: -3 } : {}}
+                    className={`glass-elevated p-3 rounded-xl text-center cursor-default relative transition-opacity ${
+                      badge.earned ? 'opacity-100' : 'opacity-30 grayscale'
+                    }`}
+                    title={badge.earned ? `${badge.description}${badge.earnedAt ? ` — ${new Date(badge.earnedAt).toLocaleDateString('fr-FR')}` : ''}` : `🔒 ${badge.description}`}
+                  >
+                    <div className="text-3xl mb-2">{badge.icon}</div>
+                    <p className={`text-xs font-medium leading-tight ${badge.earned ? 'text-white' : 'text-slate-500'}`}>
+                      {badge.name}
+                    </p>
+                    {badge.earned && badge.xpReward && (
+                      <p className="text-violet-400 text-xs mt-1">+{badge.xpReward} XP</p>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </motion.div>
 
           {/* Recent activity */}

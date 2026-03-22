@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, X, Trophy, RefreshCw, Zap, AlertTriangle,
-  CheckCircle, BarChart2,
+  CheckCircle, BarChart2, Flame, TrendingUp,
 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import QuestionCard from '../components/learning/QuestionCard';
@@ -150,11 +150,57 @@ function SessionResultModal({
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-amber-900/30 border border-amber-600/40 rounded-xl p-3 mb-4 text-center"
+            className="bg-amber-900/30 border border-amber-600/40 rounded-xl p-3 mb-3 text-center"
           >
             <p className="text-amber-400 font-bold text-sm">
               🎉 Niveau {result.newLevel} atteint !
             </p>
+          </motion.div>
+        )}
+
+        {/* Streak & ELO row */}
+        {(result.newStreak !== undefined || result.eloChange !== undefined) && (
+          <div className="flex gap-2 mb-3">
+            {result.newStreak !== undefined && (
+              <div className="flex-1 glass-card p-2 flex items-center gap-2">
+                <Flame size={14} className="text-orange-400 flex-shrink-0" />
+                <div>
+                  <p className="text-white text-xs font-bold">{result.newStreak} jour{result.newStreak !== 1 ? 's' : ''}</p>
+                  <p className="text-slate-500 text-xs">Série</p>
+                </div>
+              </div>
+            )}
+            {result.eloChange !== undefined && (
+              <div className="flex-1 glass-card p-2 flex items-center gap-2">
+                <TrendingUp size={14} className={result.eloChange >= 0 ? 'text-emerald-400' : 'text-rose-400'} />
+                <div>
+                  <p className={`text-xs font-bold ${result.eloChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {result.eloChange >= 0 ? '+' : ''}{result.eloChange} ({result.newElo})
+                  </p>
+                  <p className="text-slate-500 text-xs">ELO</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* New badges */}
+        {result.newBadges && result.newBadges.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-violet-900/20 border border-violet-600/30 rounded-xl p-3 mb-3"
+          >
+            <p className="text-violet-400 text-xs font-semibold mb-2">🏅 Nouveau{result.newBadges.length > 1 ? 'x' : ''} badge{result.newBadges.length > 1 ? 's' : ''} !</p>
+            <div className="flex gap-2 flex-wrap">
+              {result.newBadges.map((badge) => (
+                <div key={badge.id} className="flex items-center gap-1.5 glass-card px-2 py-1 rounded-lg">
+                  <span className="text-lg">{badge.icon}</span>
+                  <span className="text-white text-xs font-medium">{badge.name}</span>
+                </div>
+              ))}
+            </div>
           </motion.div>
         )}
 
@@ -317,7 +363,14 @@ export default function LearnPage() {
       setSessionResult(result);
       setShowResultModal(true);
       setPhaseStarted(false);
-      // Refresh user data and progress after session (XP/coins may have changed)
+      // Sync streak + ELO immediately into auth store (optimistic), then full refresh
+      if (result.newStreak !== undefined || result.newElo !== undefined) {
+        const { updateUser } = useAuthStore.getState();
+        const patch: Record<string, number> = {};
+        if (result.newStreak !== undefined) patch.streak = result.newStreak;
+        if (result.newElo !== undefined) patch.eloRating = result.newElo;
+        updateUser(patch);
+      }
       await Promise.all([checkAuth(), refreshProgress()]);
     } catch (err) {
       console.error('Failed to end session', err);
