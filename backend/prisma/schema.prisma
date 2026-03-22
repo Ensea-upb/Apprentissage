@@ -7,6 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILISATEURS
+// ─────────────────────────────────────────────────────────────────────────────
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -14,105 +18,232 @@ model User {
   passwordHash String
   level        Int      @default(1)
   xp           Int      @default(0)
-  dataCoins    Int      @default(0)
+  dataCoins    Int      @default(100)  // 100 DC de départ (v3)
   streak       Int      @default(0)
-  eloRating    Int      @default(1000)
   lastActiveAt DateTime @default(now())
+  eloRating    Int      @default(1000)
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   progress     ConceptProgress[]
   sm2Cards     SM2Card[]
   badges       UserBadge[]
   sessions     LearningSession[]
-  battles      Battle[]          @relation("BattleParticipant")
+  answers      UserAnswer[]
+  errorLog     ErrorLog[]
   certificates Certificate[]
+  battles      BattleParticipant[]
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONCEPTS (peuplés par le seed statique — packages/content/concepts.ts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Concept {
+  id               String   @id             // ex: "4.5.05"
+  name             String
+  shortName        String
+  block            Int
+  module           String
+  prerequisites    String[]
+  unlocks          String[]
+  estimatedMinutes Int
+  paperId          String?
+  kaggleId         String?
+  tags             String[]
+  order            Int      @default(0)     // ordre topologique pré-calculé
+
+  questions    Question[]
+  progress     ConceptProgress[]
+  sm2Cards     SM2Card[]
+
+  @@index([block])
+  @@index([module])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QUESTIONS (statiques + variantes IA)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Question {
+  id        String  @id             // ex: "p2_sdpa_001"
+  conceptId String
+  phase     Int                     // 1-6
+  type      String                  // mcq|truefalse|ordering|analogy|formula_completion|
+                                    // proof_gap|numerical|implementation|debugging|
+                                    // analysis|reasoning|open|completion
+  difficulty Int                    // 1-5
+  content   Json                    // structure complète TypeScript sérialisée
+  isStatic  Boolean @default(true)  // false = générée par l'IA (variante)
+  variantOf String?                 // ID de la question originale (si variante)
+  createdAt DateTime @default(now())
+
+  concept  Concept      @relation(fields: [conceptId], references: [id])
+  answers  UserAnswer[]
+
+  @@index([conceptId, phase])
+  @@index([isStatic])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROGRESSION PAR CONCEPT
+// ─────────────────────────────────────────────────────────────────────────────
 
 model ConceptProgress {
-  id          String    @id @default(uuid())
-  userId      String
-  conceptId   String
-  phase1Done  Boolean   @default(false)
-  phase2Done  Boolean   @default(false)
-  phase3Done  Boolean   @default(false)
-  phase4Done  Boolean   @default(false)
-  phase5Done  Boolean   @default(false)
-  phase6Done  Boolean   @default(false)
+  id        String @id @default(uuid())
+  userId    String
+  conceptId String
+
+  // Phases complétées
+  phase1Done Boolean @default(false)
+  phase2Done Boolean @default(false)
+  phase3Done Boolean @default(false)
+  phase4Done Boolean @default(false)
+  phase5Done Boolean @default(false)
+  phase6Done Boolean @default(false)
+
+  // Scores de performance (0.0 - 1.0)
+  phase1Score Float?
+  phase2Score Float?
+  phase3Score Float?
+  phase4Score Float?
+  phase5Score Float?
+
   isValidated Boolean   @default(false)
+  isMastered  Boolean   @default(false)  // phase 6 aussi complétée
   xpEarned    Int       @default(0)
+  startedAt   DateTime?
   completedAt DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept Concept @relation(fields: [conceptId], references: [id])
+
   @@unique([userId, conceptId])
+  @@index([userId, isValidated])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SM-2 (révision espacée — algorithme Wozniak 1987)
+// ─────────────────────────────────────────────────────────────────────────────
 
 model SM2Card {
-  id               String   @id @default(uuid())
-  userId           String
-  conceptId        String
-  repetitionNumber Int      @default(0)
-  easinessFactor   Float    @default(2.5)
-  interval         Int      @default(1)
-  nextReviewDate   DateTime @default(now())
-  lastReviewDate   DateTime @default(now())
-  qualityHistory   Int[]
-  decayLevel       Float    @default(0.0)
+  id             String   @id @default(uuid())
+  userId         String
+  conceptId      String
 
-  user User @relation(fields: [userId], references: [id])
+  // Algorithme SM-2 exact
+  n              Int      @default(0)    // répétitions réussies consécutives
+  EF             Float    @default(2.5)  // easiness factor [1.3, ∞)
+  interval       Int      @default(1)    // jours jusqu'à la prochaine révision
+  nextReviewDate DateTime @default(now())
+  lastReviewDate DateTime @default(now())
+
+  // Courbe d'Ebbinghaus
+  decayLevel     Float    @default(0.0)  // [0,1] : 0=frais, 1=oublié
+
+  // Historique complet des évaluations
+  qualityHistory Int[]                   // séquence des scores q ∈ {0..5}
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept Concept @relation(fields: [conceptId], references: [id])
+
   @@unique([userId, conceptId])
+  @@index([userId, nextReviewDate])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SESSIONS D'APPRENTISSAGE
+// ─────────────────────────────────────────────────────────────────────────────
 
 model LearningSession {
   id             String    @id @default(uuid())
   userId         String
   conceptId      String
   phase          Int
+  livesRemaining Int       @default(3)
+  xpEarned       Int       @default(0)
+  dcEarned       Int       @default(0)
+
   questionsAsked Int       @default(0)
   correctAnswers Int       @default(0)
-  livesRemaining Int       @default(3)
-  errorTypes     Json      @default("{}")
-  xpEarned       Int       @default(0)
-  startedAt      DateTime  @default(now())
-  completedAt    DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  // Taxonomie des erreurs (4 catégories — v3 remplace le JSON errorTypes)
+  errConceptual   Int      @default(0)
+  errMathematical Int      @default(0)
+  errApplication  Int      @default(0)
+  errReading      Int      @default(0)
+
+  // Recovery tracking (système des 3 erreurs)
+  recoveryCount   Int      @default(0)
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers UserAnswer[]
+
+  @@index([userId, startedAt])
 }
 
-model Battle {
-  id           String    @id @default(uuid())
-  conceptId    String
-  player1Id    String
-  player2Id    String
-  winnerId     String?
-  player1Score Int       @default(0)
-  player2Score Int       @default(0)
-  status       String    @default("pending")
-  startedAt    DateTime  @default(now())
-  completedAt  DateTime?
+// ─────────────────────────────────────────────────────────────────────────────
+// RÉPONSES DES UTILISATEURS
+// ─────────────────────────────────────────────────────────────────────────────
 
-  player1 User @relation("BattleParticipant", fields: [player1Id], references: [id])
+model UserAnswer {
+  id         String   @id @default(uuid())
+  sessionId  String
+  questionId String
+  userId     String
+
+  answer      Json     // réponse brute de l'utilisateur
+  isCorrect   Boolean
+  score       Float?   // 0.0-1.0 pour les questions à score partiel
+  errorType   String?  // conceptual|mathematical|application|reading
+  timeSpentMs Int?
+  usedHint    Boolean  @default(false)
+
+  // Évaluation IA (si applicable — questions ouvertes phase 6)
+  aiEvaluation Json?
+
+  answeredAt DateTime @default(now())
+
+  session  LearningSession @relation(fields: [sessionId], references: [id])
+  question Question        @relation(fields: [questionId], references: [id])
+
+  @@index([userId, questionId])
 }
 
-model Certificate {
-  id        String   @id @default(uuid())
-  userId    String
-  blockId   Int
-  blockName String
-  xpAtTime  Int
-  accuracy  Float
-  issuedAt  DateTime @default(now())
-  publicUrl String   @unique
+// ─────────────────────────────────────────────────────────────────────────────
+// TAXONOMIE DES ERREURS (analytics)
+// ─────────────────────────────────────────────────────────────────────────────
 
-  user User @relation(fields: [userId], references: [id])
+model ErrorLog {
+  id         String   @id @default(uuid())
+  userId     String
+  conceptId  String
+  questionId String
+  errorType  String   // conceptual|mathematical|application|reading
+  phase      Int
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, errorType])
+  @@index([userId, conceptId])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GAMIFICATION
+// ─────────────────────────────────────────────────────────────────────────────
 
 model Badge {
   id          String @id
   name        String
   description String
   icon        String
-  category    String
+  category    String  // achievement|streak|block|speed|research|learning|mastery|performance|special
   xpReward    Int
+  dcReward    Int     @default(0)
 
   users UserBadge[]
 }
@@ -122,7 +253,49 @@ model UserBadge {
   badgeId  String
   earnedAt DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id])
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   badge Badge @relation(fields: [badgeId], references: [id])
+
   @@id([userId, badgeId])
+}
+
+model Certificate {
+  id           String   @id @default(uuid())
+  userId       String
+  blockId      Int
+  blockName    String
+  conceptsDone Int
+  accuracy     Float
+  issuedAt     DateTime @default(now())
+  publicToken  String   @unique @default(uuid())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BATTLE MODE
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Battle {
+  id          String    @id @default(uuid())
+  conceptId   String
+  status      String    @default("waiting")  // waiting|active|completed
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  participants BattleParticipant[]
+}
+
+model BattleParticipant {
+  id       String @id @default(uuid())
+  battleId String
+  userId   String
+  score    Int    @default(0)
+  isWinner Boolean @default(false)
+  eloGain  Int     @default(0)
+
+  battle Battle @relation(fields: [battleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, userId])
 }

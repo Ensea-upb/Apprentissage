@@ -1,20 +1,10 @@
 import 'dotenv/config';
+// Validate all required environment variables at startup (fails fast)
+import { env } from './config/env';
+
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-
-// ── Validate required environment variables before anything else ──
-const REQUIRED_ENV = ['JWT_SECRET', 'DATABASE_URL'];
-const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
-if (missing.length > 0) {
-  console.error(`FATAL: Missing required environment variables: ${missing.join(', ')}`);
-  process.exit(1);
-}
-
-// ANTHROPIC_API_KEY is optional — Ollama local AI is used as fallback
-if (!process.env.ANTHROPIC_API_KEY || !process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-')) {
-  console.warn('[AI] No valid Anthropic key → will use Ollama local inference (OLLAMA_HOST:', process.env.OLLAMA_HOST || 'http://host.docker.internal:11434', ')');
-}
 
 import authRoutes from './routes/auth';
 import conceptsRoutes from './routes/concepts';
@@ -25,14 +15,14 @@ import sm2Routes from './routes/sm2';
 import badgesRoutes from './routes/badges';
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3001', 10);
+const PORT = env.PORT;
 
 // Trust nginx reverse proxy (required for correct IP in rate limiting)
 app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || ['http://localhost:5173', 'http://localhost:3000'],
+  origin: env.CORS_ORIGIN,
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));

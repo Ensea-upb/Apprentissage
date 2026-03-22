@@ -1,163 +1,205 @@
+/**
+ * ai.ts — Routes IA v3
+ *
+ * L'IA joue des rôles délimités — elle n'est plus utilisée pour générer des questions.
+ * Les questions sont servies depuis la base statique (table Question).
+ *
+ * Endpoints v3 :
+ *   GET  /api/ai/questions/:conceptId/:phase — questions statiques depuis la DB
+ *   POST /api/ai/evaluate-open              — évaluation rubric pour questions ouvertes
+ *   POST /api/ai/variant                    — variante après 3 échecs
+ *   POST /api/ai/socrates                   — dialogue socratique
+ *   POST /api/ai/documentation              — docs ciblées après 3 erreurs
+ *   POST /api/ai/evaluate-answer            — évaluation simple (rétro-compat)
+ *   GET  /api/ai/insight, /daily-insight    — insight quotidien
+ */
+
 import { Router, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
-import { generateQuestions, evaluateAnswer, getDailyInsight } from '../services/ai.service';
-import { CONCEPTS } from '../data/concepts';
-
-function buildFallbackQuestions(conceptLabel: string, count: number) {
-  const base = [
-    {
-      id: 'fq-1',
-      type: 'mcq' as const,
-      question: `Quelle est la définition la plus précise de "${conceptLabel}" ?`,
-      options: [
-        `${conceptLabel} est une technique fondamentale en Data Science.`,
-        `${conceptLabel} est uniquement utilisé en statistiques descriptives.`,
-        `${conceptLabel} ne s'applique qu'aux données non structurées.`,
-        `${conceptLabel} est un algorithme de tri.`,
-      ],
-      correctAnswer: `${conceptLabel} est une technique fondamentale en Data Science.`,
-      explanation: `${conceptLabel} joue un rôle central dans l'analyse et la modélisation des données.`,
-      difficulty: 1,
-    },
-    {
-      id: 'fq-2',
-      type: 'truefalse' as const,
-      question: `${conceptLabel} peut être utilisé dans des pipelines de Machine Learning.`,
-      options: ['Vrai', 'Faux'],
-      correctAnswer: 'Vrai',
-      explanation: `La plupart des concepts fondamentaux comme ${conceptLabel} s'intègrent dans des pipelines ML.`,
-      difficulty: 1,
-    },
-    {
-      id: 'fq-3',
-      type: 'mcq' as const,
-      question: `Dans quel contexte applique-t-on typiquement ${conceptLabel} ?`,
-      options: [
-        'Lors de la phase d\'exploration et de préparation des données.',
-        'Uniquement lors de la mise en production.',
-        'Seulement pour les images.',
-        'Exclusivement pour les séries temporelles.',
-      ],
-      correctAnswer: 'Lors de la phase d\'exploration et de préparation des données.',
-      explanation: `${conceptLabel} intervient principalement dans les premières phases du cycle de vie d'un projet Data Science.`,
-      difficulty: 2,
-    },
-    {
-      id: 'fq-4',
-      type: 'mcq' as const,
-      question: `Quel avantage principal offre la maîtrise de ${conceptLabel} ?`,
-      options: [
-        'Améliorer la qualité et la pertinence des modèles.',
-        'Éliminer le besoin de données.',
-        'Remplacer tous les autres algorithmes.',
-        'Aucun avantage mesurable.',
-      ],
-      correctAnswer: 'Améliorer la qualité et la pertinence des modèles.',
-      explanation: `Comprendre ${conceptLabel} permet de construire des modèles plus robustes et interprétables.`,
-      difficulty: 2,
-    },
-    {
-      id: 'fq-5',
-      type: 'truefalse' as const,
-      question: `${conceptLabel} nécessite une bonne compréhension des mathématiques sous-jacentes pour être utilisé efficacement.`,
-      options: ['Vrai', 'Faux'],
-      correctAnswer: 'Vrai',
-      explanation: `Comme la plupart des concepts en Data Science, ${conceptLabel} repose sur des fondations mathématiques solides.`,
-      difficulty: 2,
-    },
-    {
-      id: 'fq-6',
-      type: 'mcq' as const,
-      question: `Quelle est une erreur courante lors de l'application de ${conceptLabel} ?`,
-      options: [
-        'Ignorer les hypothèses de base du concept.',
-        'Utiliser trop de données.',
-        'Documenter le code.',
-        'Tester le modèle.',
-      ],
-      correctAnswer: 'Ignorer les hypothèses de base du concept.',
-      explanation: `Ne pas respecter les hypothèses de ${conceptLabel} conduit à des résultats erronés ou trompeurs.`,
-      difficulty: 3,
-    },
-    {
-      id: 'fq-7',
-      type: 'mcq' as const,
-      question: `Comment évaluer si ${conceptLabel} a été correctement appliqué ?`,
-      options: [
-        'En mesurant les métriques adaptées au problème.',
-        'En comptant le nombre de lignes de code.',
-        'En regardant uniquement la vitesse d\'exécution.',
-        'En vérifiant la taille du fichier de données.',
-      ],
-      correctAnswer: 'En mesurant les métriques adaptées au problème.',
-      explanation: `L'évaluation de ${conceptLabel} passe par des métriques appropriées (précision, rappel, AUC, etc.) selon le contexte.`,
-      difficulty: 3,
-    },
-  ];
-  return base.slice(0, Math.min(count, base.length));
-}
-
-const STATIC_INSIGHT = {
-  id: 'static-insight-001',
-  title: 'La règle des 80/20 en Data Science',
-  content: '80% du temps d\'un projet Data Science est consacré à la collecte, nettoyage et préparation des données. Seulement 20% est dédié à la modélisation. Maîtriser l\'exploration et la préparation des données est donc la compétence la plus précieuse.',
-  category: 'best_practice',
-  mathFormula: 'P(succès) ∝ qualité des données',
-};
+import {
+  evaluateOpenAnswer,
+  generateVariant,
+  socratesNext,
+  generateDocumentation,
+  evaluateAnswer,
+  getDailyInsight,
+  SocratesMessage,
+} from '../services/ai.service';
 
 const router = Router();
+const prisma = new PrismaClient();
 router.use(authenticateToken);
 
-// POST /api/ai/generate-questions
-router.post('/generate-questions', async (req: AuthRequest, res: Response) => {
-  const { conceptId, phase, count } = req.body as {
-    conceptId: string;
-    phase: number;
-    count?: number;
-  };
+// ─── GET /api/ai/questions/:conceptId/:phase ──────────────────────────────────
+// Serve static questions from DB (v3 — replaces AI generation)
 
-  if (!conceptId || !phase) {
-    res.status(400).json({ error: 'conceptId and phase required' });
+router.get('/questions/:conceptId/:phase', async (req: AuthRequest, res: Response) => {
+  const conceptId = req.params.conceptId as string;
+  const phase = parseInt(req.params.phase as string, 10);
+
+  if (!conceptId || isNaN(phase) || phase < 1 || phase > 6) {
+    res.status(400).json({ error: 'conceptId and phase (1-6) required' });
     return;
   }
-
-  const concept = CONCEPTS.find((c) => c.id === conceptId);
-  if (!concept) {
-    res.status(404).json({ error: 'Concept not found' });
-    return;
-  }
-
-  const questionCount = count || (phase === 1 ? 10 : phase === 2 ? 10 : 8);
 
   try {
-    const result = await generateQuestions(
-      concept.id,
-      concept.label,
-      concept.moduleName,
-      concept.blockName,
-      phase,
-      questionCount,
-    );
-    // Normalize AI snake_case fields → camelCase expected by frontend
-    const normalized = result.questions.map((q, i) => ({
-      id: q.id ?? `q_${i + 1}`,
-      type: q.type,
-      question: q.question,
-      options: q.options,
-      correctAnswer: q.correct_answer,
-      explanation: q.explanation,
-      difficulty: q.difficulty ?? 2,
-      commonMistake: q.common_mistake,
-    }));
-    res.json({ questions: normalized });
+    const questions = await prisma.question.findMany({
+      where: { conceptId, phase },
+      orderBy: { difficulty: 'asc' },
+    });
+
+    if (questions.length === 0) {
+      res.status(404).json({
+        error: 'No questions found for this concept/phase',
+        hint: 'Run npm run db:seed in the backend to seed static questions',
+      });
+      return;
+    }
+
+    // Return the content of each question (the full static structure)
+    res.json({
+      questions: questions.map((q) => ({
+        ...(q.content as object),
+        _meta: { isStatic: q.isStatic, variantOf: q.variantOf },
+      })),
+      total: questions.length,
+    });
   } catch (err) {
-    console.error('AI generation error:', err);
-    const fallback = buildFallbackQuestions(concept.label, questionCount);
-    res.json({ questions: fallback });
+    console.error('Questions fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch questions' });
   }
 });
 
-// POST /api/ai/evaluate-answer
+// ─── POST /api/ai/evaluate-open ───────────────────────────────────────────────
+// Évaluation rubric pour les questions ouvertes (Phase 6, résumés)
+
+router.post('/evaluate-open', async (req: AuthRequest, res: Response) => {
+  const { conceptId, questionId, userAnswer, expectedKeyPoints, rubricWeight } = req.body as {
+    conceptId: string;
+    questionId: string;
+    userAnswer: string;
+    expectedKeyPoints: string[];
+    rubricWeight: number[];
+  };
+
+  if (!conceptId || !questionId || !userAnswer || !Array.isArray(expectedKeyPoints)) {
+    res.status(400).json({ error: 'conceptId, questionId, userAnswer, expectedKeyPoints required' });
+    return;
+  }
+
+  try {
+    const result = await evaluateOpenAnswer({
+      conceptId,
+      questionId,
+      userAnswer,
+      expectedKeyPoints,
+      rubricWeight: rubricWeight ?? expectedKeyPoints.map(() => 1),
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Open answer evaluation error:', err);
+    res.status(500).json({ error: 'Failed to evaluate answer' });
+  }
+});
+
+// ─── POST /api/ai/variant ─────────────────────────────────────────────────────
+// Génère une variante après 3 échecs consécutifs sur la même question
+
+router.post('/variant', async (req: AuthRequest, res: Response) => {
+  const { originalQuestion, conceptId, failureReason, attemptCount } = req.body as {
+    originalQuestion: Record<string, unknown>;
+    conceptId: string;
+    failureReason: 'conceptual' | 'mathematical' | 'application' | 'reading';
+    attemptCount: number;
+  };
+
+  if (!originalQuestion || !conceptId || !failureReason) {
+    res.status(400).json({ error: 'originalQuestion, conceptId, failureReason required' });
+    return;
+  }
+
+  if (!['conceptual', 'mathematical', 'application', 'reading'].includes(failureReason)) {
+    res.status(400).json({ error: 'failureReason must be one of: conceptual|mathematical|application|reading' });
+    return;
+  }
+
+  try {
+    const variant = await generateVariant({
+      originalQuestion,
+      conceptId,
+      failureReason,
+      attemptCount: attemptCount ?? 3,
+    });
+    res.json({ variant });
+  } catch (err) {
+    console.error('Variant generation error:', err);
+    res.status(500).json({ error: 'Failed to generate variant' });
+  }
+});
+
+// ─── POST /api/ai/socrates ────────────────────────────────────────────────────
+// Dialogue socratique — question plus profonde
+
+router.post('/socrates', async (req: AuthRequest, res: Response) => {
+  const { conceptId, conceptName, conversationHistory, currentDepth } = req.body as {
+    conceptId: string;
+    conceptName: string;
+    conversationHistory: SocratesMessage[];
+    currentDepth: number;
+  };
+
+  if (!conceptId || !conceptName) {
+    res.status(400).json({ error: 'conceptId and conceptName required' });
+    return;
+  }
+
+  try {
+    const response = await socratesNext({
+      conceptId,
+      conceptName,
+      conversationHistory: conversationHistory ?? [],
+      currentDepth: currentDepth ?? 0,
+    });
+    res.json(response);
+  } catch (err) {
+    console.error('Socrates error:', err);
+    res.status(500).json({ error: 'Failed to generate socratic question' });
+  }
+});
+
+// ─── POST /api/ai/documentation ──────────────────────────────────────────────
+// Documentation ciblée après 3 erreurs consécutives
+
+router.post('/documentation', async (req: AuthRequest, res: Response) => {
+  const { conceptId, conceptName, questionContext, errorType } = req.body as {
+    conceptId: string;
+    conceptName: string;
+    questionContext: string;
+    errorType: 'conceptual' | 'mathematical' | 'application' | 'reading';
+  };
+
+  if (!conceptId || !conceptName || !errorType) {
+    res.status(400).json({ error: 'conceptId, conceptName, errorType required' });
+    return;
+  }
+
+  try {
+    const docs = await generateDocumentation({
+      conceptId,
+      conceptName,
+      questionContext: questionContext ?? '',
+      errorType,
+    });
+    res.json(docs);
+  } catch (err) {
+    console.error('Documentation generation error:', err);
+    res.status(500).json({ error: 'Failed to generate documentation' });
+  }
+});
+
+// ─── POST /api/ai/evaluate-answer — rétrocompatiblité ────────────────────────
+
 router.post('/evaluate-answer', async (req: AuthRequest, res: Response) => {
   const { question, userAnswer, conceptId } = req.body as {
     question: string;
@@ -170,10 +212,10 @@ router.post('/evaluate-answer', async (req: AuthRequest, res: Response) => {
     return;
   }
 
-  const concept = CONCEPTS.find((c) => c.id === conceptId);
-  const conceptLabel = concept?.label || conceptId;
-
   try {
+    // Try to get concept name from DB
+    const concept = await prisma.concept.findUnique({ where: { id: conceptId } });
+    const conceptLabel = concept?.name ?? conceptId;
     const result = await evaluateAnswer(question, userAnswer, conceptId, conceptLabel);
     res.json(result);
   } catch (err) {
@@ -182,48 +224,17 @@ router.post('/evaluate-answer', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// POST /api/ai/explain — explain a concept or why an answer was wrong
-router.post('/explain', async (req: AuthRequest, res: Response) => {
-  const { conceptId, errorType, userAnswer } = req.body as {
-    conceptId: string;
-    errorType?: string;
-    userAnswer?: string;
-  };
+// ─── GET /api/ai/insight + /daily-insight ────────────────────────────────────
 
-  if (!conceptId) {
-    res.status(400).json({ error: 'conceptId required' });
-    return;
-  }
+const STATIC_INSIGHT = {
+  id: 'static-insight-001',
+  title: 'La règle des 80/20 en Data Science',
+  content: '80% du temps d\'un projet Data Science est consacré à la collecte, nettoyage et préparation des données. Seulement 20% est dédié à la modélisation.',
+  category: 'best_practice',
+};
 
-  const concept = CONCEPTS.find((c) => c.id === conceptId);
-  if (!concept) {
-    res.status(404).json({ error: 'Concept not found' });
-    return;
-  }
-
-  // Sanitize inputs before building prompt
-  const safeConceptLabel = concept.label.replace(/[`"\\]/g, '');
-  const safeModuleName = concept.moduleName.replace(/[`"\\]/g, '');
-  const safeUserAnswer = userAnswer ? userAnswer.slice(0, 500).replace(/[`"\\]/g, '') : '';
-  const safeErrorType = errorType ? errorType.slice(0, 100).replace(/[`"\\]/g, '') : '';
-
-  try {
-    const result = await evaluateAnswer(
-      `Explain the concept "${safeConceptLabel}" from module "${safeModuleName}"${safeErrorType ? `, focusing on the error type: ${safeErrorType}` : ''}${safeUserAnswer ? `. Student answer: ${safeUserAnswer}` : ''}`,
-      safeUserAnswer || '(no answer provided)',
-      conceptId,
-      safeConceptLabel,
-    );
-    res.json({ explanation: result.feedback });
-  } catch (err) {
-    console.error('AI explain error:', err);
-    res.status(500).json({ error: 'Failed to generate explanation' });
-  }
-});
-
-// GET /api/ai/insight — daily data science insight
 router.get('/insight', async (req: AuthRequest, res: Response) => {
-  const recentConcepts = (req.query.concepts as string || '').split(',').filter(Boolean);
+  const recentConcepts = ((req.query.concepts as string) || '').split(',').filter(Boolean);
   try {
     const insight = await getDailyInsight(recentConcepts);
     res.json(insight);
@@ -233,9 +244,8 @@ router.get('/insight', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// GET /api/ai/daily-insight — alias for /insight (frontend compatibility)
 router.get('/daily-insight', async (req: AuthRequest, res: Response) => {
-  const recentConcepts = (req.query.concepts as string || '').split(',').filter(Boolean);
+  const recentConcepts = ((req.query.concepts as string) || '').split(',').filter(Boolean);
   try {
     const insight = await getDailyInsight(recentConcepts);
     res.json(insight);
