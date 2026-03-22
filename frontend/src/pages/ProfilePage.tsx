@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   User, Zap, Trophy, Flame, Coins, Target, TrendingUp,
-  Star, Brain, Calendar, Award,
+  Star, Brain, Calendar, Award, type LucideIcon,
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
@@ -16,7 +16,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useProgressStore } from '../stores/progressStore';
 import { progressApi } from '../api/progress';
 import { badgesApi } from '../api/badges';
-import { UserStats, ErrorType, SkillLevel, Badge } from '../types';
+import { UserStats, ErrorType, SkillLevel, Badge as BadgeData } from '../types';
 import {
   getLevelTitle, getProgressToNextLevel, getXPForLevel, formatXP,
 } from '../utils/levelUtils';
@@ -43,7 +43,7 @@ function StatCard({
   color,
   className = '',
 }: {
-  icon: React.ComponentType<{ size: number; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   label: string;
   value: string | number;
   color: string;
@@ -73,7 +73,7 @@ export default function ProfilePage() {
   const { user } = useAuthStore();
   const { conceptProgress, loadProgress } = useProgressStore();
   const [stats, setStats] = useState<UserStats | null>(null);
-  const [badges, setBadges] = useState<Badge[]>([]);
+  const [badges, setBadges] = useState<BadgeData[]>([]);
   const [badgeStats, setBadgeStats] = useState({ earnedCount: 0, totalCount: 0 });
   const [isLoading, setIsLoading] = useState(true);
 

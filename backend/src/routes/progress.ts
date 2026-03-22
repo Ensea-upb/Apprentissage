@@ -42,13 +42,13 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
     const totalCorrect = sessions.reduce((s, sess) => s + sess.correctAnswers, 0);
     const totalAsked = sessions.reduce((s, sess) => s + sess.questionsAsked, 0);
 
-    // Aggregate error types across all sessions
-    const errorBreakdown: Record<string, number> = {};
+    // Aggregate error types across all sessions (v3: 4 typed columns)
+    const errorBreakdown: Record<string, number> = { conceptual: 0, mathematical: 0, application: 0, reading: 0 };
     for (const sess of sessions) {
-      const errors = sess.errorTypes as Record<string, number>;
-      for (const [k, v] of Object.entries(errors)) {
-        errorBreakdown[k] = (errorBreakdown[k] || 0) + v;
-      }
+      errorBreakdown['conceptual']  += sess.errConceptual;
+      errorBreakdown['mathematical'] += sess.errMathematical;
+      errorBreakdown['application'] += sess.errApplication;
+      errorBreakdown['reading']     += sess.errReading;
     }
 
     // Recent activity (last 10 completed sessions)

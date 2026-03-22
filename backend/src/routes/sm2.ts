@@ -3,7 +3,6 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { sm2Update, accuracyToQuality } from '../services/sm2.service';
 import { computeDecay } from '../services/decay.service';
-import { CONCEPTS } from '../data/concepts';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -45,14 +44,19 @@ router.get('/due-today', async (req: AuthRequest, res: Response) => {
       orderBy: { nextReviewDate: 'asc' },
     });
 
+    // Fetch concept metadata from DB
+    const conceptIds = cards.map((c) => c.conceptId);
+    const concepts = await prisma.concept.findMany({ where: { id: { in: conceptIds } } });
+    const conceptMap = new Map(concepts.map((c): [string, typeof c] => [c.id, c]));
+
     // Update decay levels and enrich with concept metadata
     const updated = cards.map((card) => {
-      const concept = CONCEPTS.find((c) => c.id === card.conceptId);
+      const concept = conceptMap.get(card.conceptId);
       return {
         ...card,
         decayLevel: computeDecay(card.lastReviewDate, card.interval),
-        conceptLabel: concept?.label,
-        blockName: concept?.blockName,
+        conceptLabel: concept?.name,
+        blockName: concept ? `Block ${concept.block}` : undefined,
       };
     });
 
@@ -105,8 +109,8 @@ router.post('/:conceptId/review', async (req: AuthRequest, res: Response) => {
     const sm2Input = {
       conceptId: card.conceptId,
       userId: card.userId,
-      repetitionNumber: card.repetitionNumber,
-      easinessFactor: card.easinessFactor,
+      n: card.n,
+      EF: card.EF,
       interval: card.interval,
       nextReviewDate: card.nextReviewDate,
       qualityHistory: card.qualityHistory,
@@ -118,8 +122,8 @@ router.post('/:conceptId/review', async (req: AuthRequest, res: Response) => {
     const saved = await prisma.sM2Card.update({
       where: { userId_conceptId: { userId, conceptId } },
       data: {
-        repetitionNumber: updated.repetitionNumber,
-        easinessFactor: updated.easinessFactor,
+        n: updated.n,
+        EF: updated.EF,
         interval: updated.interval,
         nextReviewDate: updated.nextReviewDate,
         lastReviewDate: new Date(),
@@ -131,7 +135,7 @@ router.post('/:conceptId/review', async (req: AuthRequest, res: Response) => {
     res.json({
       card: saved,
       newInterval: saved.interval,
-      newEasinessFactor: saved.easinessFactor,
+      newEasinessFactor: saved.EF,
     });
   } catch (err) {
     console.error(err);

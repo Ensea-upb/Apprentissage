@@ -17,7 +17,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       prisma.userBadge.findMany({ where: { userId } }),
     ]);
 
-    const earnedMap = new Map(earnedRows.map((r) => [r.badgeId, r.earnedAt]));
+    const earnedMap = new Map(earnedRows.map((r): [string, Date] => [r.badgeId, r.earnedAt]));
 
     const badges = allBadges.map((b) => ({
       id: b.id,
