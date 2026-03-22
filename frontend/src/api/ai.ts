@@ -11,6 +11,7 @@ export interface GenerateQuestionsRequest {
 
 export interface GenerateQuestionsResponse {
   questions: Question[];
+  total?: number;
 }
 
 export interface ExplainConceptRequest {
@@ -23,9 +24,8 @@ export const aiApi = {
   generateQuestions: async (
     request: GenerateQuestionsRequest
   ): Promise<GenerateQuestionsResponse> => {
-    const response = await apiClient.post<GenerateQuestionsResponse>(
-      '/ai/generate-questions',
-      request
+    const response = await apiClient.get<GenerateQuestionsResponse>(
+      `/ai/questions/${request.conceptId}/${request.phase}`
     );
     return response.data;
   },

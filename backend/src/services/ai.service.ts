@@ -10,9 +10,14 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Lazy-initialized so the SDK does not emit warnings when ANTHROPIC_API_KEY is empty
+let _anthropicClient: Anthropic | null = null;
+function getAnthropicClient(): Anthropic {
+  if (!_anthropicClient) {
+    _anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return _anthropicClient;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,23 +78,30 @@ async function callOllama(
   prompt: string,
   system?: string,
   maxTokens = 2048,
+  requireJson = true,
 ): Promise<string> {
   const host = process.env.OLLAMA_HOST || 'http://host.docker.internal:11434';
   const model = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
 
   const fullPrompt = system ? `${system}\n\n${prompt}` : prompt;
 
+  const body: Record<string, unknown> = {
+    model,
+    prompt: fullPrompt,
+    stream: false,
+    options: { temperature: 0.1, num_predict: maxTokens },
+  };
+  // Only force JSON format when the caller expects a JSON response.
+  // Socratic dialogue expects plain text; forcing format:'json' makes Ollama
+  // wrap the answer in a JSON object, which the caller never parses.
+  if (requireJson) body.format = 'json';
+
   const resp = await fetch(`${host}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      prompt: fullPrompt,
-      stream: false,
-      format: 'json',
-      options: { temperature: 0.1, num_predict: maxTokens },
-    }),
-    signal: AbortSignal.timeout(180_000),
+    body: JSON.stringify(body),
+    // 90s — must stay under nginx's proxy_read_timeout for /api/ai/ (120s)
+    signal: AbortSignal.timeout(90_000),
   });
 
   if (!resp.ok) throw new Error(`Ollama HTTP ${resp.status}`);
@@ -103,6 +115,7 @@ async function callClaude(
     system?: string;
     messages?: SocratesMessage[];
     max_tokens?: number;
+    jsonResponse?: boolean; // set false for plain-text responses (e.g. Socratic dialogue)
   } = {},
 ): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY ?? '';
@@ -114,7 +127,7 @@ async function callClaude(
         ? opts.messages.map((m) => ({ role: m.role, content: m.content }))
         : [{ role: 'user', content: userPrompt }];
 
-      const message = await client.messages.create({
+      const message = await getAnthropicClient().messages.create({
         model: 'claude-sonnet-4-5',
         max_tokens: opts.max_tokens ?? 1024,
         system: opts.system,
@@ -132,7 +145,7 @@ async function callClaude(
     console.info('[AI] No valid Anthropic key — using Ollama');
   }
 
-  return callOllama(userPrompt, opts.system, opts.max_tokens);
+  return callOllama(userPrompt, opts.system, opts.max_tokens, opts.jsonResponse ?? true);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -269,6 +282,7 @@ Réponds UNIQUEMENT avec la question (pas de JSON, pas de préambule).`;
       system,
       messages: params.conversationHistory,
       max_tokens: 400,
+      jsonResponse: false, // plain text — Ollama must NOT wrap this in a JSON object
     });
     return {
       question: question.trim(),

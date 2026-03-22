@@ -30,7 +30,9 @@ services:
     restart: unless-stopped
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: dataquest-backend
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/dataquest
@@ -50,6 +52,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    # Allows backend to reach Ollama on the host machine on Linux
+    # (host.docker.internal is automatic on Docker Desktop but not on Linux)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - internal
       - public
