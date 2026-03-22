@@ -52,6 +52,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    # Allows backend to reach Ollama on the host machine on Linux
+    # (host.docker.internal is automatic on Docker Desktop but not on Linux)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - internal
       - public

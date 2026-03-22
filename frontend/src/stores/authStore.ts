@@ -37,7 +37,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user, token, isLoading: false });
     } catch (err: unknown) {
       const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.error ||
         'Erreur de connexion. Vérifiez vos identifiants.';
       set({ isLoading: false, error: message });
       throw err;
@@ -53,7 +53,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user, token, isLoading: false });
     } catch (err: unknown) {
       const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.error ||
         "Erreur lors de l'inscription.";
       set({ isLoading: false, error: message });
       throw err;

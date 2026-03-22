@@ -7,7 +7,7 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000,
+  timeout: 90000, // 90s — covers Ollama response latency on AI routes
 });
 
 // Request interceptor: inject auth token
@@ -22,11 +22,12 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: handle 401 globally
+// Response interceptor: handle 401 (missing token) and 403 (expired token) globally
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    if (status === 401 || status === 403) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       // Redirect to login if not already there
