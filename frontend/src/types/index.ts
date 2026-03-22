@@ -108,7 +108,7 @@ export interface Badge {
   name: string;
   description: string;
   icon: string;
-  category: 'learning' | 'streak' | 'mastery' | 'speed' | 'special' | 'block' | 'performance' | 'special';
+  category: 'learning' | 'streak' | 'mastery' | 'speed' | 'special' | 'block' | 'performance';
   xpReward?: number;
   earned?: boolean;
   earnedAt?: string | null;
