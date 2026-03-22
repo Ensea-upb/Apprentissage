@@ -209,6 +209,7 @@ model UserAnswer {
 
   session  LearningSession @relation(fields: [sessionId], references: [id])
   question Question        @relation(fields: [questionId], references: [id])
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, questionId])
 }

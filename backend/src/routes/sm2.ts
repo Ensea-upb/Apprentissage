@@ -47,7 +47,7 @@ router.get('/due-today', async (req: AuthRequest, res: Response) => {
     // Fetch concept metadata from DB
     const conceptIds = cards.map((c) => c.conceptId);
     const concepts = await prisma.concept.findMany({ where: { id: { in: conceptIds } } });
-    const conceptMap = new Map(concepts.map((c) => [c.id, c]));
+    const conceptMap = new Map(concepts.map((c): [string, typeof c] => [c.id, c]));
 
     // Update decay levels and enrich with concept metadata
     const updated = cards.map((card) => {

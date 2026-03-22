@@ -78,10 +78,14 @@ router.post('/:id/answer', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const errorTypes = (session.errorTypes as Record<string, number>) || {};
-    if (!isCorrect && errorType) {
-      errorTypes[errorType] = (errorTypes[errorType] || 0) + 1;
-    }
+    // Map errorType string to the correct v3 column
+    const errIncrement: Record<string, object> = {
+      conceptual:   { errConceptual:   { increment: 1 } },
+      mathematical: { errMathematical: { increment: 1 } },
+      application:  { errApplication:  { increment: 1 } },
+      reading:      { errReading:      { increment: 1 } },
+    };
+    const errUpdate = (!isCorrect && errorType && errIncrement[errorType]) ? errIncrement[errorType] : {};
 
     const xpGain = isCorrect ? 10 : 0;
     const coinGain = isCorrect ? 5 : 0;
@@ -92,7 +96,7 @@ router.post('/:id/answer', async (req: AuthRequest, res: Response) => {
         questionsAsked: { increment: 1 },
         correctAnswers: isCorrect ? { increment: 1 } : undefined,
         livesRemaining: !isCorrect ? Math.max(0, session.livesRemaining - 1) : undefined,
-        errorTypes,
+        ...errUpdate,
         xpEarned: { increment: xpGain },
       },
     });
@@ -197,7 +201,12 @@ router.post('/:id/complete', async (req: AuthRequest, res: Response) => {
       correctAnswers: completed.correctAnswers,
       accuracy,
       xpEarned: completed.xpEarned,
-      errorBreakdown: completed.errorTypes,
+      errorBreakdown: {
+        conceptual:   completed.errConceptual,
+        mathematical: completed.errMathematical,
+        application:  completed.errApplication,
+        reading:      completed.errReading,
+      },
       phaseCompleted: accuracy >= 60,
       levelUp,
       newLevel: computedLevel,
