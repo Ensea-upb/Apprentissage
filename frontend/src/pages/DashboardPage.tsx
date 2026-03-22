@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Zap, Trophy, Target, TrendingUp, BookOpen, Play, Flame, Coins,
-  ChevronRight, RefreshCw, Star,
+  ChevronRight, RefreshCw, Star, type LucideIcon,
 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import Sidebar from '../components/layout/Sidebar';
@@ -28,7 +28,7 @@ function StatCard({
   color,
   subtitle,
 }: {
-  icon: React.ComponentType<{ size: number; className?: string; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   label: string;
   value: string | number;
   color: string;

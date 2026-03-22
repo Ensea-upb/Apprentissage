@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown, ChevronRight, Lock, Play, CheckCircle, RefreshCw,
-  Map, Search, Filter, Loader2,
+  Map as MapIcon, Search, Filter, Loader2, type LucideIcon,
 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import Sidebar from '../components/layout/Sidebar';
@@ -26,7 +26,7 @@ interface GroupedData {
 
 const statusConfig: Record<ConceptStatus, {
   color: string;
-  icon: React.ComponentType<{ size: number; className?: string }>;
+  icon: LucideIcon;
   label: string;
   bgClass: string;
   borderClass: string;
@@ -386,7 +386,7 @@ export default function RoadmapPage() {
           >
             <div>
               <div className="flex items-center gap-3 mb-1">
-                <Map size={20} className="text-violet-400" />
+                <MapIcon size={20} className="text-violet-400" />
                 <h1 className="text-2xl font-bold text-white">Roadmap</h1>
               </div>
               <p className="text-slate-500 text-sm">
