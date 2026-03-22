@@ -203,6 +203,15 @@ router.post('/:conceptId/phase/:phase/complete', async (req: AuthRequest, res: R
         data: { xp: { increment: xpEarned }, dataCoins: { increment: coinsEarned } },
       });
 
+      // When concept is newly validated, create or reset its SM-2 review card
+      if (updateData.isValidated) {
+        await tx.sM2Card.upsert({
+          where: { userId_conceptId: { userId, conceptId } },
+          update: { nextReviewDate: new Date() },
+          create: { userId, conceptId },
+        });
+      }
+
       return { alreadyDone: false, progress, xpEarned, coinsEarned, conceptValidated: !!updateData.isValidated };
     });
 

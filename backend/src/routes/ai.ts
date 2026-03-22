@@ -138,7 +138,18 @@ router.post('/generate-questions', async (req: AuthRequest, res: Response) => {
       phase,
       questionCount,
     );
-    res.json(result);
+    // Normalize AI snake_case fields → camelCase expected by frontend
+    const normalized = result.questions.map((q, i) => ({
+      id: q.id ?? `q_${i + 1}`,
+      type: q.type,
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correct_answer,
+      explanation: q.explanation,
+      difficulty: q.difficulty ?? 2,
+      commonMistake: q.common_mistake,
+    }));
+    res.json({ questions: normalized });
   } catch (err) {
     console.error('AI generation error:', err);
     const fallback = buildFallbackQuestions(concept.label, questionCount);

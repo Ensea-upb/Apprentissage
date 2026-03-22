@@ -21,4 +21,14 @@ export const progressApi = {
     const response = await apiClient.get<UserStats>('/progress/stats');
     return response.data;
   },
+
+  completePhase: async (conceptId: string, phase: number): Promise<{
+    success: boolean;
+    xpEarned: number;
+    coinsEarned: number;
+    conceptValidated: boolean;
+  }> => {
+    const response = await apiClient.post(`/progress/${conceptId}/phase/${phase}/complete`);
+    return response.data;
+  },
 };

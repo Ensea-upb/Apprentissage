@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { sessionsApi } from '../api/sessions';
 import { aiApi } from '../api/ai';
+import { progressApi } from '../api/progress';
 import { Session, Question, Answer, SessionResult, ErrorType } from '../types';
 
 interface SessionState {
@@ -131,6 +132,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       const result = await sessionsApi.end(currentSession.id);
       set({ currentSession: null, isSessionComplete: true });
+
+      // Mark phase as complete if accuracy >= 60%
+      if (result.accuracy >= 60) {
+        try {
+          await progressApi.completePhase(currentSession.conceptId, currentSession.phase);
+        } catch {
+          // Non-critical — progress will sync on next load
+        }
+      }
+
       return result;
     } catch {
       // Compute result locally if backend fails

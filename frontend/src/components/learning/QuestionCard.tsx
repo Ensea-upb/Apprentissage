@@ -65,7 +65,10 @@ export default function QuestionCard({
   const handleTrueFalse = (value: boolean) => {
     if (isAnswered) return;
     const answer = value ? 'true' : 'false';
-    const correct = answer === question.correctAnswer.toLowerCase();
+    // Accept both 'true'/'false' and French 'Vrai'/'Faux' as correct answer formats
+    const ca = question.correctAnswer.toLowerCase();
+    const correctIsTrue = ca === 'true' || ca === 'vrai';
+    const correct = value === correctIsTrue;
     if (!correct) setShakeKey((k) => k + 1);
     onAnswer(answer, correct);
   };
@@ -198,7 +201,8 @@ export default function QuestionCard({
             ].map(({ value, label, icon: Icon, color }) => {
               const answer = value ? 'true' : 'false';
               const isSelected = selectedAnswer === answer;
-              const correctAnswer = question.correctAnswer.toLowerCase() === answer;
+              const ca = question.correctAnswer.toLowerCase();
+              const correctAnswer = value === (ca === 'true' || ca === 'vrai');
 
               let style = `bg-bg-elevated border border-white/10 text-slate-200 hover:border-${color}-500/60 hover:bg-${color}-900/10 cursor-pointer`;
               if (isAnswered) {
