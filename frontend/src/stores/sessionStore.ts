@@ -30,6 +30,27 @@ const INITIAL_LIVES = 3;
 const XP_PER_CORRECT = 10;
 const XP_STREAK_BONUS = 5;
 
+// ─── Question cache (localStorage, persists until browser cache is cleared) ───
+
+const qCacheKey = (conceptId: string, phase: number) => `dq_q_${conceptId}_p${phase}`;
+
+function readQuestionsCache(conceptId: string, phase: number): Question[] | null {
+  try {
+    const raw = localStorage.getItem(qCacheKey(conceptId, phase));
+    return raw ? (JSON.parse(raw) as Question[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeQuestionsCache(conceptId: string, phase: number, questions: Question[]): void {
+  try {
+    localStorage.setItem(qCacheKey(conceptId, phase), JSON.stringify(questions));
+  } catch {
+    // localStorage quota exceeded — ignore, cache is best-effort
+  }
+}
+
 /**
  * Sort questions by difficulty (ascending) then Fisher-Yates shuffle within
  * each difficulty tier so the order is random but always progresses 1→5.
@@ -78,9 +99,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Start a session on the backend
       const { session } = await sessionsApi.start(conceptId, phase);
 
-      // Generate questions from AI — sort by difficulty then shuffle within tiers
-      const { questions: raw } = await aiApi.generateQuestions({ conceptId, phase, count: 7 });
-      const questions = sortAndShuffle(raw);
+      // Load questions — from localStorage cache first, then API
+      const cached = readQuestionsCache(conceptId, phase);
+      let rawQuestions: Question[];
+      if (cached && cached.length > 0) {
+        rawQuestions = cached;
+      } else {
+        const { questions: fetched } = await aiApi.generateQuestions({ conceptId, phase, count: 7 });
+        rawQuestions = fetched;
+        writeQuestionsCache(conceptId, phase, rawQuestions);
+      }
+      const questions = sortAndShuffle(rawQuestions);
 
       set({
         currentSession: session,

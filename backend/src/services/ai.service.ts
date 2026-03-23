@@ -9,10 +9,16 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { AsyncLocalStorage } from 'async_hooks';
 
-// Lazy-initialized so the SDK does not emit warnings when ANTHROPIC_API_KEY is empty
+// Per-request user-provided Anthropic API key injected via X-User-Api-Key header.
+// AsyncLocalStorage isolates the value per async call chain without touching globals.
+export const userApiKeyContext = new AsyncLocalStorage<string>();
+
+// Lazy-initialized global client (used when no per-request key is provided)
 let _anthropicClient: Anthropic | null = null;
-function getAnthropicClient(): Anthropic {
+function getAnthropicClient(keyOverride?: string): Anthropic {
+  if (keyOverride) return new Anthropic({ apiKey: keyOverride });
   if (!_anthropicClient) {
     _anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
@@ -115,11 +121,14 @@ async function callClaude(
     system?: string;
     messages?: SocratesMessage[];
     max_tokens?: number;
-    jsonResponse?: boolean; // set false for plain-text responses (e.g. Socratic dialogue)
+    jsonResponse?: boolean;
   } = {},
 ): Promise<string> {
-  const key = process.env.ANTHROPIC_API_KEY ?? '';
-  const hasValidKey = key.startsWith('sk-ant-');
+  // Per-request key (from X-User-Api-Key header) takes priority over the env var
+  const perRequestKey = userApiKeyContext.getStore();
+  const envKey = process.env.ANTHROPIC_API_KEY ?? '';
+  const activeKey = perRequestKey ?? envKey;
+  const hasValidKey = activeKey.startsWith('sk-ant-');
 
   if (hasValidKey) {
     try {
@@ -127,7 +136,7 @@ async function callClaude(
         ? opts.messages.map((m) => ({ role: m.role, content: m.content }))
         : [{ role: 'user', content: userPrompt }];
 
-      const message = await getAnthropicClient().messages.create({
+      const message = await getAnthropicClient(perRequestKey).messages.create({
         model: 'claude-sonnet-4-5',
         max_tokens: opts.max_tokens ?? 1024,
         system: opts.system,

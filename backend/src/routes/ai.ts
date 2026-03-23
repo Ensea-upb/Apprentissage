@@ -14,7 +14,7 @@
  *   GET  /api/ai/insight, /daily-insight    — insight quotidien
  */
 
-import { Router, Response } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import {
@@ -24,12 +24,24 @@ import {
   generateDocumentation,
   evaluateAnswer,
   getDailyInsight,
+  userApiKeyContext,
   SocratesMessage,
 } from '../services/ai.service';
 
 const router = Router();
 const prisma = new PrismaClient();
 router.use(authenticateToken);
+
+// If the client sends X-User-Api-Key, run the rest of the chain inside the
+// AsyncLocalStorage context so callClaude picks it up automatically.
+router.use((req: AuthRequest, res: Response, next: NextFunction) => {
+  const key = req.headers['x-user-api-key'];
+  if (typeof key === 'string' && key.startsWith('sk-ant-')) {
+    userApiKeyContext.run(key, next);
+  } else {
+    next();
+  }
+});
 
 // ─── GET /api/ai/questions/:conceptId/:phase ──────────────────────────────────
 // Serve static questions from DB (v3 — replaces AI generation)

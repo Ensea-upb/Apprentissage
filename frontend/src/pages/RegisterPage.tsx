@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Brain, Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle, Zap
+  Brain, Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle, Zap, KeyRound, ChevronDown,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 
@@ -39,18 +39,21 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [showApiKeySection, setShowApiKeySection] = useState(false);
 
   const validation = validatePassword(password);
   const isPasswordValid = Object.values(validation).every(Boolean);
   const doPasswordsMatch = password === confirmPassword && confirmPassword.length > 0;
   const isFormValid = email && username && isPasswordValid && doPasswordsMatch;
+  const isApiKeyValid = apiKey === '' || apiKey.startsWith('sk-ant-');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isFormValid) return;
+    if (!isFormValid || !isApiKeyValid) return;
     clearError();
     try {
-      await register(email, username, password);
+      await register(email, username, password, apiKey || undefined);
       navigate('/dashboard');
     } catch {
       // error set in store
@@ -230,10 +233,60 @@ export default function RegisterPage() {
               )}
             </div>
 
+            {/* Optional Anthropic API key */}
+            <div className="border border-white/10 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowApiKeySection(!showApiKeySection)}
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <KeyRound size={15} className="text-slate-500" />
+                  <span className="text-slate-400 text-sm">Clé API Anthropic <span className="text-slate-600 text-xs">(optionnel)</span></span>
+                </div>
+                <motion.div animate={{ rotate: showApiKeySection ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronDown size={15} className="text-slate-500" />
+                </motion.div>
+              </button>
+              {showApiKeySection && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  className="px-4 pb-4 space-y-2"
+                >
+                  <p className="text-slate-500 text-xs leading-relaxed">
+                    Renseignez votre clé Anthropic (<code className="text-violet-400">sk-ant-…</code>) pour utiliser Claude comme moteur IA.
+                    La clé est stockée uniquement en mémoire de session et supprimée à la fermeture de l'onglet.
+                  </p>
+                  <div className="relative">
+                    <KeyRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value.trim())}
+                      className={`input-field pl-9 text-sm font-mono ${
+                        apiKey && !isApiKeyValid ? 'border-rose-500/50' : ''
+                      }`}
+                      placeholder="sk-ant-api03-…"
+                      autoComplete="off"
+                    />
+                  </div>
+                  {apiKey && !isApiKeyValid && (
+                    <p className="text-rose-400 text-xs">La clé doit commencer par <code>sk-ant-</code></p>
+                  )}
+                  {apiKey && isApiKeyValid && (
+                    <p className="text-emerald-400 text-xs flex items-center gap-1">
+                      <CheckCircle size={11} /> Clé valide
+                    </p>
+                  )}
+                </motion.div>
+              )}
+            </div>
+
             {/* Submit */}
             <motion.button
               type="submit"
-              disabled={isLoading || !isFormValid}
+              disabled={isLoading || !isFormValid || !isApiKeyValid}
               whileHover={{ scale: isFormValid ? 1.02 : 1 }}
               whileTap={{ scale: isFormValid ? 0.98 : 1 }}
               className="w-full btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
