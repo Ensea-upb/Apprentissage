@@ -265,6 +265,10 @@ export default function LearnPage() {
   const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
   const [showResultModal, setShowResultModal] = useState(false);
   const [phaseStarted, setPhaseStarted] = useState(false);
+  const [elapsedSecs, setElapsedSecs] = useState(0);
+  const [genTime, setGenTime] = useState<number | null>(null);
+  const loadStartRef = useRef<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isEndingSession = useRef(false);
 
   useEffect(() => {
@@ -320,12 +324,28 @@ export default function LearnPage() {
     setPhaseStarted(true);
     setSessionResult(null);
     setShowResultModal(false);
+    setGenTime(null);
+
+    // Start elapsed timer
+    loadStartRef.current = Date.now();
+    setElapsedSecs(0);
+    timerRef.current = setInterval(() => {
+      setElapsedSecs(Math.floor((Date.now() - loadStartRef.current!) / 1000));
+    }, 500);
+
     try {
       await startSession(conceptId!, phase);
+      // Record total generation time and stop timer
+      if (loadStartRef.current) {
+        setGenTime((Date.now() - loadStartRef.current) / 1000);
+      }
     } catch {
-      // startSession already stored the error in the store.
-      // Reset phaseStarted so the phase selector reappears alongside the error banner.
       setPhaseStarted(false);
+    } finally {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
   };
 
@@ -587,10 +607,18 @@ export default function LearnPage() {
           {/* Loading state */}
           {isLoading && (
             <div className="flex flex-col items-center justify-center py-20 gap-5">
-              <LoadingSpinner size="lg" label="Chargement des questions..." />
+              <LoadingSpinner size="lg" label="Génération des questions par l'IA..." />
               <p className="text-slate-500 text-xs text-center max-w-xs">
                 Phase {currentPhase} — {PHASE_LABELS[currentPhase - 1]}
               </p>
+              {/* Live elapsed timer */}
+              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                <span className="text-violet-300 text-sm font-mono tabular-nums">
+                  {elapsedSecs}s
+                </span>
+                <span className="text-slate-500 text-xs">en cours…</span>
+              </div>
               <button
                 onClick={() => { resetSession(); setPhaseStarted(false); }}
                 className="flex items-center gap-2 text-slate-500 hover:text-slate-300 text-sm transition-colors mt-2"
@@ -618,6 +646,25 @@ export default function LearnPage() {
                     <span className="text-slate-500 text-xs">
                       Phase {currentPhase}: {PHASE_LABELS[currentPhase - 1]}
                     </span>
+                    {/* Generation time badge — fades after mount */}
+                    <AnimatePresence>
+                      {genTime !== null && (
+                        <motion.span
+                          key="gen-time"
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          onAnimationComplete={() => {
+                            setTimeout(() => setGenTime(null), 5000);
+                          }}
+                          className="flex items-center gap-1 text-xs bg-violet-900/30 border border-violet-600/30 text-violet-400 rounded-full px-2 py-0.5"
+                        >
+                          <Zap size={10} className="fill-violet-400" />
+                          {genTime < 1 ? `${Math.round(genTime * 1000)}ms` : `${genTime.toFixed(1)}s`}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                   </div>
                   <span className="text-slate-500 text-xs">
                     {questionIndex + 1} / {questions.length}
