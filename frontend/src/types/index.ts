@@ -40,7 +40,7 @@ export type ConceptStatus = 'locked' | 'available' | 'in_progress' | 'mastered' 
 
 export interface Question {
   id: string;
-  type: 'mcq' | 'truefalse' | 'matching' | 'ordering' | 'completion' | 'analogy';
+  type: 'mcq' | 'truefalse' | 'matching' | 'ordering' | 'completion' | 'analogy' | 'formula_completion' | 'proof_gap' | 'numerical' | 'analysis' | 'reasoning' | 'open' | 'implementation' | 'debugging' | string;
   question: string;
   options?: string[];
   correctAnswer: string;

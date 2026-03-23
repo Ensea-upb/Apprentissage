@@ -32,7 +32,8 @@ const XP_STREAK_BONUS = 5;
 
 // ─── Question cache (localStorage, persists until browser cache is cleared) ───
 
-const qCacheKey = (conceptId: string, phase: number) => `dq_q_${conceptId}_p${phase}`;
+// v2: cache bumped to invalidate pre-normalization entries
+const qCacheKey = (conceptId: string, phase: number) => `dq_q_v2_${conceptId}_p${phase}`;
 
 function readQuestionsCache(conceptId: string, phase: number): Question[] | null {
   try {
