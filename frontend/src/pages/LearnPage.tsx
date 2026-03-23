@@ -584,13 +584,20 @@ export default function LearnPage() {
             </motion.div>
           )}
 
-          {/* Loading state - generating questions */}
+          {/* Loading state */}
           {isLoading && (
-            <div className="flex flex-col items-center justify-center py-20">
-              <LoadingSpinner size="lg" label="L'IA génère vos questions..." />
-              <p className="text-slate-500 text-xs mt-4 text-center max-w-xs">
-                Questions personnalisées pour la phase {currentPhase}: {PHASE_LABELS[currentPhase - 1]}
+            <div className="flex flex-col items-center justify-center py-20 gap-5">
+              <LoadingSpinner size="lg" label="Chargement des questions..." />
+              <p className="text-slate-500 text-xs text-center max-w-xs">
+                Phase {currentPhase} — {PHASE_LABELS[currentPhase - 1]}
               </p>
+              <button
+                onClick={() => { resetSession(); setPhaseStarted(false); }}
+                className="flex items-center gap-2 text-slate-500 hover:text-slate-300 text-sm transition-colors mt-2"
+              >
+                <ArrowLeft size={14} />
+                Retour à la sélection des phases
+              </button>
             </div>
           )}
 

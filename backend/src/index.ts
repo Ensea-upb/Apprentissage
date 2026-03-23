@@ -13,6 +13,7 @@ import sessionsRoutes from './routes/sessions';
 import aiRoutes from './routes/ai';
 import sm2Routes from './routes/sm2';
 import badgesRoutes from './routes/badges';
+import { getDailyInsight } from './services/ai.service';
 
 const app = express();
 const PORT = env.PORT;
@@ -72,6 +73,12 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 app.listen(PORT, () => {
   console.log(`🚀 DataQuest AI backend running on http://localhost:${PORT}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // Pre-warm AI cache: generates today's insight in the background so the first
+  // user request returns instantly from cache instead of waiting for the AI.
+  getDailyInsight([])
+    .then(() => console.log('  ✅ AI cache warm — daily insight ready'))
+    .catch((err: Error) => console.warn('  ⚠️  AI pre-warm skipped:', err.message));
 });
 
 export default app;
