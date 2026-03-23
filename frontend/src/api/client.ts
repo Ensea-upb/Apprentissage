@@ -10,12 +10,16 @@ export const apiClient = axios.create({
   timeout: 90000, // 90s — covers Ollama response latency on AI routes
 });
 
-// Request interceptor: inject auth token
+// Request interceptor: inject auth token + optional user Anthropic API key
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    const userApiKey = sessionStorage.getItem('user_api_key');
+    if (userApiKey && config.headers) {
+      config.headers['X-User-Api-Key'] = userApiKey;
     }
     return config;
   },

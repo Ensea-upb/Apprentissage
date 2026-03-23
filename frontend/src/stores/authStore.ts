@@ -6,9 +6,10 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  isBootstrapping: boolean; // true until the initial token validity check is done
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, username: string, password: string) => Promise<void>;
+  login: (email: string, password: string, apiKey?: string) => Promise<void>;
+  register: (email: string, username: string, password: string, apiKey?: string) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
   clearError: () => void;
@@ -25,15 +26,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   })(),
   token: localStorage.getItem('token'),
+  // isBootstrapping stays true until the initial /auth/me check resolves.
+  // This prevents a flash of authenticated content before token validation.
+  isBootstrapping: !!localStorage.getItem('token'),
   isLoading: false,
   error: null,
 
-  login: async (email: string, password: string) => {
+  login: async (email: string, password: string, apiKey?: string) => {
     set({ isLoading: true, error: null });
     try {
       const { token, user } = await authApi.login(email, password);
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      if (apiKey?.startsWith('sk-ant-')) {
+        sessionStorage.setItem('user_api_key', apiKey);
+      }
       set({ user, token, isLoading: false });
     } catch (err: unknown) {
       const message =
@@ -44,12 +51,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  register: async (email: string, username: string, password: string) => {
+  register: async (email: string, username: string, password: string, apiKey?: string) => {
     set({ isLoading: true, error: null });
     try {
       const { token, user } = await authApi.register(email, username, password);
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      if (apiKey?.startsWith('sk-ant-')) {
+        sessionStorage.setItem('user_api_key', apiKey);
+      }
       set({ user, token, isLoading: false });
     } catch (err: unknown) {
       const message =
@@ -63,24 +73,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    sessionStorage.removeItem('user_api_key');
     set({ user: null, token: null, error: null });
   },
 
   checkAuth: async () => {
     const token = get().token;
     if (!token) {
-      set({ user: null });
+      set({ user: null, isBootstrapping: false });
       return;
     }
     set({ isLoading: true });
     try {
       const user = await authApi.me();
       localStorage.setItem('user', JSON.stringify(user));
-      set({ user, isLoading: false });
+      set({ user, isLoading: false, isBootstrapping: false });
     } catch {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      set({ user: null, token: null, isLoading: false });
+      sessionStorage.removeItem('user_api_key');
+      set({ user: null, token: null, isLoading: false, isBootstrapping: false });
     }
   },
 
